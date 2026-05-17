@@ -1,0 +1,3090 @@
+import Phaser from 'phaser';
+
+    // ============================================================
+    //  PHASE 3 — THE WORLD GETS BIGGER
+    //  New: data-driven maps, exit transitions, camera follow.
+    // ============================================================
+
+    const TILE_SIZE = 32;
+    const HUD_H = 40;
+    const UI_H = 100;
+    const VIEWPORT_W = 640;
+    const VIEWPORT_MAP_H = 384;       // height of the visible map strip on canvas
+    const TOTAL_H = HUD_H + VIEWPORT_MAP_H + UI_H;
+    const MAP_OFFSET_Y = HUD_H;       // map's world-y starts under the HUD
+
+    // Safe vertical center for full-screen modals (Character, Shop, etc.)
+    // Sits below the HUD strip, leaves room for canvas bottom. Used by any
+    // modal tall enough that the old cy (HUD_H + VIEWPORT_MAP_H/2) would clip.
+    const MODAL_CY = HUD_H + (TOTAL_H - HUD_H) / 2;   // = 282
+
+    // ---------- ITEMS CATALOG ----------
+    // Tiers: common (gray), magic (green), rare (yellow/amber), legendary (purple)
+    // Types: 'potion' (consumable), 'accessory' (equippable accessory), 'outfit' (equippable outfit)
+    const TIER_COLORS = {
+      common:    '#a8a89a',
+      magic:     '#6bcb77',
+      rare:      '#f5b840',
+      legendary: '#c084fc',
+    };
+    const TYPE_LABELS = {
+      potion:    'POTION',
+      accessory: 'ACCESSORY',
+      outfit:    'OUTFIT',
+    };
+    const items = {
+      // ---- POTIONS ----
+      healing_tea:        { name: 'Healing Tea',         type: 'potion',    tier: 'common',    price: 10,  effect: 'hp', amount: 30 },
+      energy_drink:       { name: 'Energy Drink',        type: 'potion',    tier: 'common',    price: 10,  effect: 'mp', amount: 30 },
+      great_healing_tea:  { name: 'Great Healing Tea',   type: 'potion',    tier: 'common',    price: 25,  effect: 'hp', amount: 60 },
+      // ---- ACCESSORIES ----
+      lucky_necktie:      { name: 'Lucky Necktie',       type: 'accessory', tier: 'magic',     price: 50,  effect: 'equipment', slot: 'accessory', bonus: { hp: 10, mp: 10, atk: 2, def: 1 }, grantsSkills: ['cold_outreach'] },
+      linkedin_pin:       { name: 'LinkedIn Premium Pin',type: 'accessory', tier: 'rare',      price: 100, effect: 'equipment', slot: 'accessory', bonus: { hp: 20, mp: 20, atk: 4, def: 2 }, grantsSkills: ['inmail_strike'] },
+      researcher_glasses: { name: "Researcher's Glasses",type: 'accessory', tier: 'legendary', price: 150, effect: 'equipment', slot: 'accessory', bonus: { hp: 30, mp: 30, atk: 6, def: 3 }, grantsSkills: ['reference_check'] },
+      // ---- OUTFITS ----
+      salesforce_hoodie:  { name: 'Salesforce Hoodie',   type: 'outfit',    tier: 'magic',     price: 60,  effect: 'equipment', slot: 'outfit', bonus: { hp: 20, mp: 5,  atk: 1, def: 2 }, grantsSkills: ['hustle_mode'] },
+      tailored_suit:      { name: 'Tailored Suit',       type: 'outfit',    tier: 'rare',      price: 130, effect: 'equipment', slot: 'outfit', bonus: { hp: 30, mp: 15, atk: 3, def: 4 }, buffs: { defPct: 10 }, grantsSkills: ['power_stance'] },
+      anthropic_hoodie:   { name: 'Anthropic Hoodie',    type: 'outfit',    tier: 'legendary', price: 200, effect: 'equipment', slot: 'outfit', bonus: { hp: 50, mp: 40, atk: 5, def: 6 }, buffs: { atkPct: 15 }, grantsSkills: ['mission_aligned'] },
+    };
+    const shopOrder = [
+      'healing_tea','energy_drink',
+      'lucky_necktie','linkedin_pin','researcher_glasses',
+      'salesforce_hoodie','tailored_suit','anthropic_hoodie',
+    ];
+
+    // ---------- MAGIC SKILLS ----------
+    const skills = {
+      cold_outreach: {
+        name: 'Cold Outreach',
+        tier: 'magic',
+        mpCost: 5,
+        damage: 12,
+        desc: 'A quick networking jab. Cheap and reliable.',
+      },
+      hustle_mode: {
+        name: 'Hustle Mode',
+        tier: 'magic',
+        mpCost: 6,
+        damage: 14,
+        desc: 'Channel grind energy. Magic damage with hustle.',
+      },
+      inmail_strike: {
+        name: 'InMail Strike',
+        tier: 'rare',
+        mpCost: 9,
+        damage: 20,
+        desc: 'Leverage your premium network for a meaty hit.',
+      },
+      power_stance: {
+        name: 'Power Stance',
+        tier: 'rare',
+        mpCost: 10,
+        damage: 22,
+        desc: 'Project executive presence. They flinch first.',
+      },
+      reference_check: {
+        name: 'Reference Check',
+        tier: 'legendary',
+        mpCost: 12,
+        damage: 30,
+        desc: 'Reveal weaknesses. A heavy blow that lands hard.',
+      },
+      mission_aligned: {
+        name: 'Mission Aligned',
+        tier: 'legendary',
+        mpCost: 14,
+        damage: 32,
+        desc: 'Speak truth to power. Devastating clarity.',
+      },
+    };
+
+    // ---------- BOSSES ----------
+    // Each boss = 100 XP. 3 Salesforce bosses → Lv 3 → Stage 1.
+    // 5 Anthropic bosses → Lv 8 → Stage 2 (final).
+    const bosses = {
+      // ---- Salesforce bosses (Stage 0 challenges) ----
+      pushy_director: {
+        id: 'pushy_director', name: 'The Director', title: 'Quota Crusher',
+        category: 'salesforce', color: 0xc23b22, letter: 'P',
+        hp: 50, attack: 7, xpReward: 100, gratitudeReward: 25, canRun: true,
+        introLines: [
+          'The Director: "Where are those candidates?"',
+          '"You should be on three calls right now."',
+          '"Show me what you\'ve got, Jay."',
+        ],
+        attackLines: [
+          'The Director slams the table.',
+          '"Quota or quitter, no in-between!"',
+          '"What\'s your closing rate today?"',
+        ],
+        defeatLines: [
+          '"...Fine. Maybe I was a bit much."',
+          '"Take the win, Jay."',
+        ],
+      },
+      toxic_vp: {
+        id: 'toxic_vp', name: 'The VP', title: 'The Smiler',
+        category: 'salesforce', color: 0x8b3a1f, letter: 'V',
+        hp: 70, attack: 9, xpReward: 100, gratitudeReward: 25, canRun: false,
+        introLines: [
+          'The VP: "Jay! Synergy buddy!"',
+          '(He says your name like he\'s practicing it.)',
+          '"Quick chat about your \'commitment\'?"',
+        ],
+        attackLines: [
+          '"Are you a team player or NOT?"',
+          'The VP forwards an email at 11pm.',
+          '"Per my last message..."',
+        ],
+        defeatLines: [
+          '"...You\'re leaving? After all I\'ve done?"',
+          '(He never did anything.)',
+        ],
+      },
+      difficult_colleague: {
+        id: 'difficult_colleague', name: 'Opposing Colleague', title: 'The Credit Thief',
+        category: 'salesforce', color: 0x6b3410, letter: 'D',
+        hp: 60, attack: 8, xpReward: 100, gratitudeReward: 25, canRun: false,
+        introLines: [
+          'Opposing Colleague: "Oh hey. About that pipeline review..."',
+          '"I think you misremembered who closed that deal."',
+        ],
+        attackLines: [
+          '"Actually, that was MY candidate."',
+          '"I led that loop, remember?"',
+          '"Just being honest with you, bro."',
+        ],
+        defeatLines: [
+          '"...Whatever. Good luck at Anthropic."',
+          '(He says it like a threat.)',
+        ],
+      },
+      // ---- Anthropic bosses (Stage 1 challenges, placement deferred to Phase 5.1) ----
+      anthropic_recruiter: {
+        id: 'anthropic_recruiter', name: 'The Screener', title: 'Round One',
+        category: 'anthropic', color: 0xc084fc, letter: 'S',
+        hp: 100, attack: 10, xpReward: 100, gratitudeReward: 40, canRun: false,
+        introLines: ['Screener: "Hi Jay! Excited to chat."', '"Walk me through your story."'],
+        attackLines: ['"Tell me about your last role."', '"What drew you to Anthropic?"', '"And then what happened?"'],
+        defeatLines: ['"Loved this chat, Jay. Round 2 awaits."'],
+      },
+      anthropic_hm: {
+        id: 'anthropic_hm', name: 'The Hiring Manager', title: 'Technical Loop',
+        category: 'anthropic', color: 0xc084fc, letter: 'H',
+        hp: 110, attack: 11, xpReward: 100, gratitudeReward: 40, canRun: false,
+        introLines: ['HM: "Let\'s get into the weeds."', '"How would you scale GTM hiring here?"'],
+        attackLines: ['"Walk me through your sourcing approach."', '"How do you measure success?"', '"What would you do in week one?"'],
+        defeatLines: ['"Strong answers. I\'ll pass you through."'],
+      },
+      anthropic_lead: {
+        id: 'anthropic_lead', name: 'The Regional Lead', title: 'APAC Round',
+        category: 'anthropic', color: 0xc084fc, letter: 'R',
+        hp: 120, attack: 12, xpReward: 100, gratitudeReward: 40, canRun: false,
+        introLines: ['Regional Lead: "Jay-san, hajimemashite."', '"日本市場についてどう思いますか？"'],
+        attackLines: ['"What\'s your read on Tokyo talent?"', '"How do you handle bilingual loops?"', '"Tell me about a recruiting failure."'],
+        defeatLines: ['"Good. You think in systems. I like that."'],
+      },
+      anthropic_exec: {
+        id: 'anthropic_exec', name: 'The Executive', title: 'Cross-Functional',
+        category: 'anthropic', color: 0xc084fc, letter: 'X',
+        hp: 130, attack: 13, xpReward: 100, gratitudeReward: 40, canRun: false,
+        introLines: ['Executive: "Big picture time."', '"Why should Anthropic invest in APAC GTM?"'],
+        attackLines: ['"What\'s your 12-month plan?"', '"How do you partner with sales?"', '"Convince me."'],
+        defeatLines: ['"Clear thinking. Final round next."'],
+      },
+      anthropic_final: {
+        id: 'anthropic_final', name: 'The Final Round', title: 'The Last Mile',
+        category: 'anthropic', color: 0xc084fc, letter: 'F',
+        hp: 150, attack: 14, xpReward: 100, gratitudeReward: 60, canRun: false,
+        introLines: ['Final Round: "We\'re close, Jay. Just one more."', '"Tell me why YOU. Why now."'],
+        attackLines: ['"What\'s your mission?"', '"What scares you about this role?"', '"What will you do that no one else would?"'],
+        defeatLines: ['"...Welcome to Anthropic, Jay."'],
+      },
+    };
+
+    // ============================================================
+    //  MAPS — each is a self-contained zone (data only)
+    // ============================================================
+    const maps = {
+      house: {
+        // 20 cols x 12 rows. Fits canvas exactly, no camera scroll.
+        layout: [
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+          [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+          [1,0,2,2,0,0,0,0,0,0,0,0,0,0,0,2,2,2,0,1],
+          [1,0,2,2,0,0,0,0,0,0,0,0,0,0,0,2,2,2,0,1],
+          [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+          [1,0,0,0,0,0,0,0,2,2,0,0,0,0,0,0,0,0,0,1],
+          [1,0,0,0,0,0,0,0,2,2,0,0,0,0,0,0,0,0,0,1],
+          [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+          [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+          [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+          [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+          [1,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,1],
+        ],
+        tileDefs: [
+          { color: 0xd4a574, walkable: true  }, // 0 floor
+          { color: 0x4a2c1a, walkable: false }, // 1 wall
+          { color: 0x8b6f47, walkable: false }, // 2 furniture
+          { color: 0xc99a6a, walkable: true  }, // 3 door (transition)
+        ],
+        npcs: [
+          {
+            name: 'Wife', letter: 'W', gridX: 4, gridY: 4, color: 0xe87da9,
+            gratitudeReward: 5,
+            menuOptions: [
+              { label: 'Talk', action: 'talk' },
+              { label: 'Shop', action: 'shop' },
+              { label: 'Leave', action: 'leave' },
+            ],
+            conversations: [
+              // Stage 0 — Salesforce Days, daily life
+              { stage: 0, lines: ["Welcome home.", "Mion drew on the wall again.", "We have modern art now."] },
+              { stage: 0, lines: ["How was the prep session?", "You've been ready since round two.", "Breathe."] },
+              { stage: 0, lines: ["Coffee's on the counter.", "I made the strong one.", "You earned it."] },
+              { stage: 0, lines: ["Fu Chan threw up on your notebook.", "...He's reviewing your work, I think."] },
+              { stage: 0, lines: ["You okay?", "...Okay. Just checking."] },
+              { stage: 0, lines: ["Anthropic, huh.", "Wild how fast May 2026 got here.", "Proud of you. Now eat something."] },
+              { stage: 0, lines: ["Going out for a walk?", "Say hi to Takeda for me."] },
+              // Stage 1 — Crossing Over (3 early bosses down, mid-process)
+              { stage: 1, lines: ["You came home late again.", "Coffee's still warm if you want it.", "I left it on."] },
+              { stage: 1, lines: ["How'd it go today?", "...Okay. You don't have to talk about it.", "Just glad you're home."] },
+              { stage: 1, lines: ["Mion asked for you twice tonight.", "I told her you're working on something big.", "She seemed to get it."] },
+              { stage: 1, lines: ["You're going to be fine.", "I don't know how I know.", "I just do."] },
+              { stage: 1, lines: ["Coffee's on the counter.", "I made the strong one.", "Same as always."] },
+              // Stage 2 — Anthropic offer secured
+              { stage: 2, lines: ["So... it's real.", "We're really doing this.", "I'm so proud of you."] },
+              { stage: 2, lines: ["Boxes are piling up in the hallway.", "Don't worry about packing tonight.", "Just be here."] },
+              { stage: 2, lines: ["Mion won't remember this part.", "But you will.", "That's what matters."] },
+              { stage: 2, lines: ["Coffee's on the counter.", "I made the strong one.", "Same as always."] },
+              // Stage 3 — Departure (all Anthropic rounds cleared, onboarding inbound)
+              { stage: 3, lines: ["You did it.", "All five rounds. Every one.", "I'm so proud of you, Jay."] },
+              { stage: 3, lines: ["Anthropic onboarding starts May 2026.", "Your flight to SFO is on the calendar.", "I packed your charger. Twice. Just in case."] },
+              { stage: 3, lines: ["Mion doesn't know yet that the world is about to change.", "She'll grow up knowing her dad built something.", "Go build it."] },
+              { stage: 3, lines: ["When the gate calls your flight,", "don't look back at me.", "Just go. I'll be here when you land."] },
+              { stage: 3, lines: ["Coffee's on the counter.", "I made the strong one.", "Drink it on the train to Narita."] },
+            ],
+          },
+          {
+            name: 'Fu Chan', letter: 'F', gridX: 10, gridY: 8, color: 0xff9933,
+            gratitudeReward: 0,
+            menuOptions: [
+              { label: 'Talk', action: 'talk' },
+              { label: 'Pat (+10 HP, +10 MP)', action: 'pat' },
+              { label: 'Leave', action: 'leave' },
+            ],
+            conversations: [
+              // Stage 0
+              { stage: 0, lines: ["Fu Chan slow-blinks at you.", "(High honor.)"] },
+              { stage: 0, lines: ["Fu Chan walks across your keyboard.", "Your meeting is now cancelled."] },
+              { stage: 0, lines: ["Fu Chan presents his belly.", "(Trap. Do not engage.)"] },
+              { stage: 0, lines: ["Fu Chan judges your career choices.", "He says nothing. Says everything."] },
+              { stage: 0, lines: ["Fu Chan demands to be fed.", "He was fed four minutes ago."] },
+              { stage: 0, lines: ["Fu Chan sits on your interview notes.", "Now they are HIS interview notes."] },
+              // Stage 1 — Crossing Over
+              { stage: 1, lines: ["Fu Chan watches the door longer when you leave.", "(Or maybe he's always done that.)"] },
+              { stage: 1, lines: ["Fu Chan sits in your spot on the couch.", "(Holding it for you.)"] },
+              { stage: 1, lines: ["Fu Chan stares at your suitcase.", "(Then at you.)", "(Then walks away.)"] },
+              // Stage 2 — Anthropic Era
+              { stage: 2, lines: ["Fu Chan sits inside a cardboard box.", "(He has claimed it.)", "(It is his ship now.)"] },
+              { stage: 2, lines: ["Fu Chan slow-blinks at you.", "(He sees you.)", "(He has always seen you.)"] },
+              { stage: 2, lines: ["Fu Chan walks across your laptop.", "...same as always.", "Some things don't change."] },
+              // Stage 3 — Departure
+              { stage: 3, lines: ["Fu Chan is sitting inside the suitcase.", "(He's coming. He's decided.)", "(...He is not coming.)"] },
+              { stage: 3, lines: ["Fu Chan stares at the door for a long time.", "Then at you.", "He knows."] },
+            ],
+          },
+          {
+            name: 'Mion', letter: 'M', gridX: 16, gridY: 9, color: 0xffd966,
+            gratitudeReward: 2,
+            conversations: [
+              // Stage 0
+              { stage: 0, lines: ["Mion: 'Da!'", "She is pointing at the ceiling fan with great urgency."] },
+              { stage: 0, lines: ["Mion offers you a half-eaten rice cracker.", "This is a sacred offering. Accept it."] },
+              { stage: 0, lines: ["Mion grabs your finger and won't let go.", "She is your boss now."] },
+              { stage: 0, lines: ["Mion: 'Bah-buh-buh.'", "(You sense this is important.)"] },
+              { stage: 0, lines: ["Mion claps for nothing in particular.", "You feel oddly validated."] },
+              { stage: 0, lines: ["Mion hands a milk bottle half empty.", "She wants you to feed her.", "You smile, hug Mion and feed her."] },
+              { stage: 0, lines: ["Mion stares at you for a very long time.", "Then giggles.", "You will never know why."] },
+              // Stage 1 — Crossing Over
+              { stage: 1, lines: ["Mion grabs your tie.", "She holds on.", "Just holds on."] },
+              { stage: 1, lines: ["Mion: 'Bah!'", "She points at the door.", "(Don't go? Or hurry back? Hard to tell.)"] },
+              { stage: 1, lines: ["Mion claps when you walk in.", "She always does.", "Tonight it lands deeper."] },
+              // Stage 2 — Anthropic Era
+              { stage: 2, lines: ["Mion: 'Da-da!'", "(Wait. Was that...?)", "She giggles and runs off."] },
+              { stage: 2, lines: ["Mion holds up her stuffed bear.", "She's introducing him to the new apartment.", "You haven't even moved yet.", "Time moves differently with her."] },
+              { stage: 2, lines: ["Mion claps when you walk in.", "She always does.", "Today it hits different."] },
+              // Stage 3 — Departure
+              { stage: 3, lines: ["Mion grabs your passport.", "She studies it. Very serious.", "Then gives it back. Approved."] },
+              { stage: 3, lines: ["Mion: 'Papa go?'", "She looks up at you.", "'Papa come back?'", "(You crouch down and promise her yes.)"] },
+            ],
+          },
+        ],
+        // Exits: keyed by "gridX,gridY". Landing on this tile triggers the transition.
+        exits: {
+          '9,11':  { to: 'town', x: 5, y: 6, facing: 'down' },
+          '10,11': { to: 'town', x: 5, y: 6, facing: 'down' },
+        },
+      },
+
+      town: {
+        // 22 cols x 14 rows. Larger than viewport — camera will scroll.
+        // Tile codes: 0=grass, 1=path, 2=tree, 3=entrance, 4=wall, 5=roof, 6=flower
+        layout: [
+          [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
+          [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+          [2,0,0,5,5,5,5,5,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+          [2,0,0,5,5,5,5,5,0,0,0,0,2,0,0,0,0,0,0,0,0,2],
+          [2,0,0,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+          [2,0,0,4,4,3,4,4,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+          [2,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+          [2,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,2],
+          [2,0,6,6,1,1,1,6,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+          [2,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+          [2,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+          [2,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+          [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+          [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
+        ],
+        tileDefs: [
+          { color: 0x6a8c3f, walkable: true  }, // 0 grass
+          { color: 0xb8956a, walkable: true  }, // 1 path
+          { color: 0x2d4a1f, walkable: false }, // 2 tree
+          { color: 0xc99a6a, walkable: true  }, // 3 house entrance (transition)
+          { color: 0x6b3410, walkable: false }, // 4 house wall (outside view)
+          { color: 0x8b3a1f, walkable: false }, // 5 house roof
+          { color: 0xff6b9d, walkable: false }, // 6 flower
+        ],
+        npcs: [
+          {
+            name: 'Takeda', letter: 'T', gridX: 11, gridY: 9, color: 0x9b6a8c,
+            gratitudeReward: 3,
+            menuOptions: [
+              { label: 'Talk', action: 'talk' },
+              { label: 'Leave', action: 'leave' },
+            ],
+            conversations: [
+              // Stage 0 — Salesforce era, easy neighborly small talk
+              { stage: 0, lines: ["Takeda: 'Jay! Hisashiburi.'", "'How's the wife?'", "'Tell her I said hi.'"] },
+              { stage: 0, lines: ["Takeda: 'How's Salesforce treating you?'", "'Heard Sales Cloud had a strong quarter.'", "'You guys are doing well.'"] },
+              { stage: 0, lines: ["Takeda: 'Sales team recruiting, right?'", "'Tough role. Moving targets every quarter.'", "'You're built for it.'"] },
+              { stage: 0, lines: ["Takeda: 'You look tired, man.'", "'Eat something. Sleep early.'", "'Your body's gotta last the whole career, not just the quarter.'"] },
+              { stage: 0, lines: ["Takeda: 'Beautiful day, isn't it?'", "'Sometimes I just stand out here and breathe.'", "'You should try it.'"] },
+              { stage: 0, lines: ["Takeda: 'How's Mion doing?'", "'My kids didn't sleep through the night till age four.'", "'Solidarity, brother.'"] },
+              { stage: 0, lines: ["Takeda: 'Sales hiring is wild right now, huh?'", "'AEs jumping ship every six months.'", "'Hang in there.'"] },
+              // Stage 1 — Crossing Over (Takeda notices, doesn't know the details yet)
+              { stage: 1, lines: ["Takeda: 'You've been busy, huh?'", "'Coming home later. Different briefcase.'", "'...None of my business though.'"] },
+              { stage: 1, lines: ["Takeda: 'How's the sales hiring scene?'", "'Still wild?'", "He glances at you like he knows something's up."] },
+              { stage: 1, lines: ["Takeda: 'Take a real day off, man.'", "'Whatever you're chasing isn't going anywhere.'"] },
+              { stage: 1, lines: ["Takeda: 'Saw your wife at the conbini.'", "'She looks tired too.'", "'Whatever it is, take care of each other.'"] },
+              // Stage 2 — Anthropic offer secured (Jay is leaving Salesforce)
+              { stage: 2, lines: ["Takeda: 'So... it's official?'", "'Anthropic, huh.'", "He's smiling, but his eyes are doing something else."] },
+              { stage: 2, lines: ["Takeda: 'Gonna miss seeing you out here, Jay.'", "'Coffee at my place before you move?'", "'Don't be a stranger.'"] },
+              { stage: 2, lines: ["Takeda: 'You earned this, man.'", "'Saw it coming from a mile away.'", "'Go change the world a little.'"] },
+              { stage: 2, lines: ["Takeda: 'Keep in touch, yeah?'", "'LINE, email, whatever works.'", "'Real friends don't need much.'"] },
+              { stage: 2, lines: ["Takeda: 'The wife says we should do dinner before you move.'", "'Don't argue. Just say yes.'"] },
+              // Stage 3 — Departure (Takeda watches Jay leave for real)
+              { stage: 3, lines: ["Takeda: 'So it's tomorrow, huh.'", "'I'll watch your place. Plants. Mail. The usual.'", "'Go change something out there.'"] },
+              { stage: 3, lines: ["Takeda: 'You know what's funny?'", "'I always knew you'd leave.'", "'Just didn't think it'd feel like this.'"] },
+              { stage: 3, lines: ["Takeda: 'Send pictures from SF.'", "'The good ones. Not the curated ones.'", "'I want to see what your real life looks like.'"] },
+              { stage: 3, lines: ["Takeda: 'Don't be a stranger, Jay-san.'", "He grips your shoulder. Holds it a second longer than usual.", "'Now go catch your flight.'"] },
+            ],
+          },
+          // ---- Office signs (interact to enter) ----
+          {
+            name: 'Salesforce Office', letter: 'S', gridX: 1, gridY: 6, color: 0x4a90e2,
+            isOfficeSign: true, targetMap: 'salesforce_office',
+            menuOptions: [
+              { label: 'Enter', action: 'enter_office' },
+              { label: 'Leave', action: 'leave' },
+            ],
+          },
+          {
+            name: 'Anthropic Office', letter: 'A', gridX: 20, gridY: 6, color: 0xc084fc,
+            isOfficeSign: true, targetMap: 'anthropic_office', requiresStage: 1,
+            menuOptions: [
+              { label: 'Enter', action: 'enter_office' },
+              { label: 'Leave', action: 'leave' },
+            ],
+          },
+          // ---- Stage 3 (Departure) NPCs ----
+          // Shiori — a friend who shows up at the end to say goodbye.
+          {
+            name: 'Shiori', letter: 'I', gridX: 15, gridY: 9, color: 0xf5b8c8,
+            gratitudeReward: 5, requiresStage: 3,
+            menuOptions: [
+              { label: 'Talk', action: 'talk' },
+              { label: 'Leave', action: 'leave' },
+            ],
+            conversations: [
+              { stage: 3, lines: ["Shiori: 'I heard you're really leaving.'", "'I knew this day was coming and I still wasn't ready for it.'", "'I'm going to miss you so much, Jay.'"] },
+              { stage: 3, lines: ["Shiori: 'San Francisco is so far.'", "'Don't forget the people who knew you when.'", "She tries to smile. It mostly works."] },
+              { stage: 3, lines: ["Shiori: 'You were the one who told me Tokyo wasn't forever.'", "'I just didn't think you'd be the one to leave first.'", "'...go do the thing, okay?'"] },
+              { stage: 3, lines: ["Shiori: 'Promise me one thing.'", "'When you come back to visit, the first conbini onigiri is on me.'", "'Deal?'"] },
+            ],
+          },
+          // Airport Gate — the new door that opens when all Anthropic rounds are cleared.
+          {
+            name: 'Airport Gate', letter: 'G', gridX: 5, gridY: 11, color: 0xc084fc,
+            isOfficeSign: true, targetMap: 'airport', requiresStage: 3,
+            menuOptions: [
+              { label: 'Head to airport', action: 'enter_office' },
+              { label: 'Not yet', action: 'leave' },
+            ],
+          },
+        ],
+        exits: {
+          '5,5': { to: 'house', x: 10, y: 10, facing: 'up' },
+        },
+      },
+
+      // ===== SALESFORCE OFFICE =====
+      salesforce_office: {
+        // 16 cols x 12 rows. Corporate gray/blue palette.
+        // Tile codes: 0=floor, 1=wall, 2=desk, 3=exit-mat
+        layout: [
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+          [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+          [1,0,2,2,0,0,0,0,0,0,0,0,2,2,0,1],
+          [1,0,2,2,0,0,0,0,0,0,0,0,2,2,0,1],
+          [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+          [1,0,0,0,0,0,2,2,2,2,0,0,0,0,0,1],
+          [1,0,0,0,0,0,2,2,2,2,0,0,0,0,0,1],
+          [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+          [1,0,2,2,0,0,0,0,0,0,0,0,2,2,0,1],
+          [1,0,2,2,0,0,0,0,0,0,0,0,2,2,0,1],
+          [1,0,0,0,0,0,0,3,3,0,0,0,0,0,0,1],
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        ],
+        tileDefs: [
+          { color: 0xb8b8c2, walkable: true  }, // 0 floor (corporate gray)
+          { color: 0x3a4a5a, walkable: false }, // 1 wall
+          { color: 0x4a5a6a, walkable: false }, // 2 desk
+          { color: 0x6a8c3f, walkable: true  }, // 3 exit mat (back to town)
+        ],
+        npcs: [
+          { name: 'The Director', letter: 'D', gridX: 3, gridY: 5, color: 0xc23b22,
+            isBoss: true, bossId: 'pushy_director',
+            menuOptions: [{ label: 'Fight', action: 'fight' }, { label: 'Leave', action: 'leave' }] },
+          { name: 'The VP', letter: 'V', gridX: 12, gridY: 5, color: 0x8b3a1f,
+            isBoss: true, bossId: 'toxic_vp',
+            menuOptions: [{ label: 'Fight', action: 'fight' }, { label: 'Leave', action: 'leave' }] },
+          { name: 'Opposing Colleague', letter: 'O', gridX: 8, gridY: 8, color: 0x6b3410,
+            isBoss: true, bossId: 'difficult_colleague',
+            menuOptions: [{ label: 'Fight', action: 'fight' }, { label: 'Leave', action: 'leave' }] },
+          // ---- Stage 3 (Departure) revisit versions ----
+          // Same coords as the originals; visible only when stage 3 unlocked.
+          // The original fight NPCs hide once defeated (existing filter),
+          // so the two never appear on screen simultaneously.
+          {
+            name: 'The Director', letter: 'D', gridX: 3, gridY: 5, color: 0xc23b22,
+            gratitudeReward: 3, requiresStage: 3,
+            menuOptions: [
+              { label: 'Talk', action: 'talk' },
+              { label: 'Leave', action: 'leave' },
+            ],
+            conversations: [
+              { stage: 3, lines: ["The Director: 'Heard the news, Jay.'", "'Anthropic, huh. That's a strong close.'", "'Proud of you. Even if you closed against US.'"] },
+              { stage: 3, lines: ["The Director: 'You know what?'", "'You always closed your roles on time.'", "'I gave you hell because I knew you'd take it. Ohana, brother.'"] },
+              { stage: 3, lines: ["The Director: 'Send me a Slack from Anthropic on day one.'", "'...wait, you'll still use Slack, right?'", "'Some Ohana never dies.'"] },
+            ],
+          },
+          {
+            name: 'The VP', letter: 'V', gridX: 12, gridY: 5, color: 0x8b3a1f,
+            gratitudeReward: 3, requiresStage: 3,
+            menuOptions: [
+              { label: 'Talk', action: 'talk' },
+              { label: 'Leave', action: 'leave' },
+            ],
+            conversations: [
+              { stage: 3, lines: ["The VP: 'Jay! Synergy buddy!'", "(He still says it like that.)", "'No, but seriously — congrats on Anthropic. You earned it.'"] },
+              { stage: 3, lines: ["The VP: 'Don't forget where you came from.'", "'Salesforce is the best GTM school in the world.'", "'Take what you learned and ship it harder over there.'"] },
+              { stage: 3, lines: ["The VP: 'I'm gonna miss you, man.'", "'Quietly. Like, in a professional way.'", "'...okay, a lot.'"] },
+            ],
+          },
+          {
+            name: 'Opposing Colleague', letter: 'O', gridX: 8, gridY: 8, color: 0x6b3410,
+            gratitudeReward: 3, requiresStage: 3,
+            menuOptions: [
+              { label: 'Talk', action: 'talk' },
+              { label: 'Leave', action: 'leave' },
+            ],
+            conversations: [
+              { stage: 3, lines: ["Opposing Colleague: 'So... you actually pulled it off.'", "'Anthropic. Damn.'", "'I owe you a beer. Maybe two.'"] },
+              { stage: 3, lines: ["Opposing Colleague: 'Look — about the pipeline drama.'", "'You were right. I was being a credit thief.'", "'For real, go crush it over there. Ohana.'"] },
+              { stage: 3, lines: ["Opposing Colleague: 'You know what's weird?'", "'I'll still see you in Slack channels.'", "'Different workspace, same chaos.'", "'Anthropic better appreciate you.'"] },
+            ],
+          },
+        ],
+        exits: {
+          '7,10':  { to: 'town', x: 1, y: 6, facing: 'right' },
+          '8,10':  { to: 'town', x: 1, y: 6, facing: 'right' },
+        },
+      },
+
+      // ===== ANTHROPIC TOKYO OFFICE =====
+      anthropic_office: {
+        // 18 cols x 13 rows. Warm cream/terracotta palette to match Anthropic brand.
+        // Tile codes: 0=floor, 1=wall, 2=desk, 3=exit-mat, 4=plant
+        layout: [
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+          [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+          [1,0,4,0,0,0,0,0,0,0,0,0,0,0,0,4,0,1],
+          [1,0,0,0,2,2,0,0,0,0,0,0,2,2,0,0,0,1],
+          [1,0,0,0,2,2,0,0,0,0,0,0,2,2,0,0,0,1],
+          [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+          [1,0,0,0,0,0,0,2,2,2,2,0,0,0,0,0,0,1],
+          [1,0,0,0,0,0,0,2,2,2,2,0,0,0,0,0,0,1],
+          [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+          [1,0,4,0,0,0,2,2,0,0,2,2,0,0,0,4,0,1],
+          [1,0,0,0,0,0,2,2,0,0,2,2,0,0,0,0,0,1],
+          [1,0,0,0,0,0,0,0,3,3,0,0,0,0,0,0,0,1],
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        ],
+        tileDefs: [
+          { color: 0xf5e6d3, walkable: true  }, // 0 cream floor
+          { color: 0x8b3a1f, walkable: false }, // 1 terracotta wall
+          { color: 0xa67857, walkable: false }, // 2 wooden desk
+          { color: 0x6a8c3f, walkable: true  }, // 3 exit mat
+          { color: 0x2d4a1f, walkable: false }, // 4 plant
+        ],
+        npcs: [
+          { name: 'The Screener', letter: 'S', gridX: 4, gridY: 3, color: 0xc084fc,
+            isBoss: true, bossId: 'anthropic_recruiter',
+            menuOptions: [{ label: 'Interview', action: 'fight' }, { label: 'Leave', action: 'leave' }] },
+          { name: 'The Hiring Manager', letter: 'H', gridX: 13, gridY: 3, color: 0xc084fc,
+            isBoss: true, bossId: 'anthropic_hm',
+            menuOptions: [{ label: 'Interview', action: 'fight' }, { label: 'Leave', action: 'leave' }] },
+          { name: 'The Regional Lead', letter: 'R', gridX: 9, gridY: 6, color: 0xc084fc,
+            isBoss: true, bossId: 'anthropic_lead',
+            menuOptions: [{ label: 'Interview', action: 'fight' }, { label: 'Leave', action: 'leave' }] },
+          { name: 'The Executive', letter: 'X', gridX: 5, gridY: 9, color: 0xc084fc,
+            isBoss: true, bossId: 'anthropic_exec',
+            menuOptions: [{ label: 'Interview', action: 'fight' }, { label: 'Leave', action: 'leave' }] },
+          { name: 'The Final Round', letter: 'F', gridX: 12, gridY: 9, color: 0xc084fc,
+            isBoss: true, bossId: 'anthropic_final',
+            menuOptions: [{ label: 'Interview', action: 'fight' }, { label: 'Leave', action: 'leave' }] },
+        ],
+        exits: {
+          '8,11':  { to: 'town', x: 20, y: 6, facing: 'left' },
+          '9,11':  { to: 'town', x: 20, y: 6, facing: 'left' },
+        },
+      },
+
+      // ===== TOKYO NARITA — DEPARTURE LOBBY =====
+      // Stage 3 endgame map. Small lobby with a boarding gate at the top.
+      // Interacting with the gate triggers the ending credits sequence.
+      airport: {
+        // 14 cols x 10 rows.
+        // Tile codes: 0=floor (light beige), 1=wall, 2=bench, 3=window, 4=entry mat
+        layout: [
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+          [1,3,3,3,3,3,3,3,3,3,3,3,3,1],
+          [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+          [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+          [1,0,2,2,0,0,0,0,0,0,2,2,0,1],
+          [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+          [1,0,2,2,0,0,0,0,0,0,2,2,0,1],
+          [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+          [1,0,0,0,0,0,4,4,0,0,0,0,0,1],
+          [1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        ],
+        tileDefs: [
+          { color: 0xd4c5a8, walkable: true  }, // 0 light beige carpet floor
+          { color: 0x3a3a44, walkable: false }, // 1 dark slate wall
+          { color: 0x6b4a2a, walkable: false }, // 2 wooden bench
+          { color: 0x6a8caf, walkable: false }, // 3 window (runway view)
+          { color: 0x8b6f47, walkable: true  }, // 4 entry mat (back to town)
+        ],
+        npcs: [
+          // Boarding Gate — interacting triggers the credits sequence.
+          {
+            name: 'Boarding Gate · SFO', letter: 'G', gridX: 7, gridY: 3, color: 0xc084fc,
+            menuOptions: [
+              { label: 'Board the flight', action: 'board_flight' },
+              { label: 'Wait a moment', action: 'leave' },
+            ],
+          },
+        ],
+        exits: {
+          '6,8':  { to: 'town', x: 5, y: 10, facing: 'down' },
+          '7,8':  { to: 'town', x: 5, y: 10, facing: 'down' },
+        },
+      },
+    };
+
+    // ---------- PLAYER STATS ----------
+    const playerStats = { hp: 70, maxHp: 100, mp: 60, maxMp: 100, gratitude: 30 };
+    const BASE_MAX_HP = 100, BASE_MAX_MP = 100;
+    const HP_PER_LEVEL = 15, MP_PER_LEVEL = 15;
+    const BASE_ATTACK = 8;
+    const inventory = {};
+
+    // Aggregate stat bonuses from all equipped items
+    function getEquipmentBonuses() {
+      let hp = 0, mp = 0, atk = 0, def = 0;
+      let atkPct = 0, defPct = 0;
+      for (const slot of Object.keys(equipment)) {
+        const id = equipment[slot];
+        if (id && items[id]) {
+          const b = items[id].bonus || {};
+          hp  += b.hp  || 0;
+          mp  += b.mp  || 0;
+          atk += b.atk || 0;
+          def += b.def || 0;
+          const bf = items[id].buffs || {};
+          atkPct += bf.atkPct || 0;
+          defPct += bf.defPct || 0;
+        }
+      }
+      return { hp, mp, atk, def, atkPct, defPct };
+    }
+
+    // Damage range used by basic Attack action (and shown in Character screen)
+    function calcAttackRange() {
+      const b = getEquipmentBonuses();
+      const flatCenter = BASE_ATTACK + level * 2 + b.atk;
+      const mult = 1 + b.atkPct / 100;
+      const center = Math.floor(flatCenter * mult);
+      return { min: Math.max(1, center - 1), max: center + 2 };
+    }
+
+    function getDefense() {
+      const b = getEquipmentBonuses();
+      return Math.floor(b.def * (1 + b.defPct / 100));
+    }
+
+    // Build a human-readable description from an item's data — used in shop and inventory.
+    function describeItem(it) {
+      if (it.effect === 'hp') return '+' + it.amount + ' HP';
+      if (it.effect === 'mp') return '+' + it.amount + ' MP';
+      if (it.effect === 'equipment') {
+        const parts = [];
+        const b = it.bonus || {};
+        if (b.hp)  parts.push('+' + b.hp + ' HP');
+        if (b.mp)  parts.push('+' + b.mp + ' MP');
+        if (b.atk) parts.push('+' + b.atk + ' ATK');
+        if (b.def) parts.push('+' + b.def + ' DEF');
+        const bf = it.buffs || {};
+        if (bf.atkPct) parts.push('+' + bf.atkPct + '% ATK');
+        if (bf.defPct) parts.push('+' + bf.defPct + '% DEF');
+        if (it.grantsSkills) {
+          for (const sid of it.grantsSkills) {
+            const sk = skills[sid];
+            if (sk) parts.push('grants ' + sk.name);
+          }
+        }
+        return parts.join(' \u00b7 ');
+      }
+      return '';
+    }
+
+    // ---------- EQUIPMENT ----------
+    const equipment = {
+      outfit:     null,  // item id or null
+      accessory1: null,
+      accessory2: null,
+    };
+
+    // ---------- BATTLE STATE ----------
+    let defeatedBosses = new Set();   // boss ids that have been beaten
+
+    // ---------- STORY PROGRESSION (XP/Level driven) ----------
+    // XP accumulates from boss wins. Level derives from XP. Stage gates on Level.
+    //   Stage 0 — Salesforce Days  (Level 0-2: starting state)
+    //   Stage 1 — Crossing Over    (Level 3+: all 3 SF bosses done, can challenge Anthropic)
+    //   Stage 2 — Anthropic Era    (Level 8+: defeated all Anthropic interviewers)
+    const XP_PER_LEVEL = 100;
+    const STAGE_1_LEVEL = 3;
+    const STAGE_2_LEVEL = 8;
+    const MAX_LEVEL = 8;
+    const STAGE_LABELS = {
+      0: 'Salesforce Days',
+      1: 'Crossing Over',
+      2: 'Anthropic Era',
+      3: 'Departure',
+    };
+    let xp = 0;
+    let level = 0;
+    let storyStage = 0;
+
+    function levelFromXp(n) {
+      return Math.min(MAX_LEVEL, Math.floor(n / XP_PER_LEVEL));
+    }
+
+    function stageFromLevel(lv) {
+      if (lv >= STAGE_2_LEVEL) return 2;
+      if (lv >= STAGE_1_LEVEL) return 1;
+      return 0;
+    }
+
+    // Stage 3 = Departure. Triggered by beating ALL 5 Anthropic interviewers,
+    // independent of level. This is the endgame unlock.
+    const ANTHROPIC_BOSS_IDS = ['anthropic_recruiter', 'anthropic_hm', 'anthropic_lead', 'anthropic_exec', 'anthropic_final'];
+    function allAnthropicBossesDefeated() {
+      return ANTHROPIC_BOSS_IDS.every(id => defeatedBosses.has(id));
+    }
+
+    function recalculateProgress() {
+      const newLevel = levelFromXp(xp);
+      let newStage = stageFromLevel(newLevel);
+      // Endgame override: clearing all Anthropic bosses promotes to Stage 3.
+      if (allAnthropicBossesDefeated() && newStage < 3) newStage = 3;
+      const leveledUp = newLevel > level;
+      const stageAdvanced = newStage > storyStage;
+      level = newLevel;
+      storyStage = newStage;
+      if (leveledUp) {
+        recalculateStats();                     // bump maxHp/maxMp for new level
+        playerStats.hp = playerStats.maxHp;     // full heal — JRPG tradition
+        playerStats.mp = playerStats.maxMp;
+      }
+      if (sceneRef) {
+        if (leveledUp)     showLevelUpBanner(newLevel);
+        if (stageAdvanced) { showStageUnlockBanner(newStage); saveGame(); }
+      }
+    }
+
+    function addXp(n) {
+      xp = Math.max(0, xp + n);
+      recalculateProgress();
+    }
+
+    function pickConversation(npc) {
+      const available = npc.conversations.filter(c => (c.stage || 0) <= storyStage);
+      if (available.length === 0) return ['...'];
+      const maxStage = Math.max(...available.map(c => c.stage || 0));
+      const tier = available.filter(c => (c.stage || 0) === maxStage);
+      return tier[Math.floor(Math.random() * tier.length)].lines;
+    }
+
+    // Dev helpers (browser console):
+    //   addXp(100)      → bumps XP, may level up + advance stage
+    //   setXp(300)      → jump to exact XP value
+    //   setLevel(3)     → jump to exact level (sets XP to level threshold)
+    //   setStage(1)     → jump to exact stage (uses the level that unlocks it)
+    window.addXp = addXp;
+    window.setXp = function (n) { xp = Math.max(0, n); recalculateProgress();
+      console.log('[Recruiter Quest] xp =', xp, '· level =', level, '· stage =', storyStage); };
+    window.setLevel = function (n) { window.setXp(Math.max(0, Math.min(MAX_LEVEL, n)) * XP_PER_LEVEL); };
+    window.setStage = function (n) {
+      if (n >= 3) {
+        // Stage 3 is gated on beating every Anthropic boss, not on level.
+        // Force-add them all so the override fires.
+        ANTHROPIC_BOSS_IDS.forEach(id => defeatedBosses.add(id));
+        window.setLevel(STAGE_2_LEVEL);   // also ensure level fits the arc
+        return;
+      }
+      const target = n <= 0 ? 0 : n === 1 ? STAGE_1_LEVEL : STAGE_2_LEVEL;
+      window.setLevel(target);
+    };
+
+    // ---------- PLAYER ENTITY ----------
+    let player, playerLabel, playerEye;
+    let playerGridX = 9, playerGridY = 9;
+    let playerFacing = 'down';
+    let isMoving = false;
+
+    // ---------- MAP STATE ----------
+    let currentMapId = 'house';
+    // GameObjects that get destroyed and recreated on map switch
+    let activeTileObjects = [];
+    let activeNpcObjects = [];
+
+    // ---------- MODE STATE ----------
+    let gameMode = 'overworld';        // 'overworld' | 'dialogue' | 'npcMenu' | 'shop' | 'character' | 'pause'
+    let currentMenuNpc = null;
+
+    // ---------- TOUCH STATE ----------
+    // Set by D-pad pointerdown, cleared on pointerup. GameScene.update() reads this
+    // alongside cursor keys so movement works the same way from touch or keyboard.
+    let touchDir = null;               // null | 'left' | 'right' | 'up' | 'down'
+    // Tracks which scene is currently active so DOM touch buttons dispatch correctly.
+    let activeSceneKey = 'menu';       // 'menu' | 'game' | 'battle'
+
+    // ---------- DIALOGUE STATE ----------
+    let currentLines = [], currentLineIndex = 0;
+    let isTyping = false, fullText = '', typeTimer = null;
+    let currentSpeakerNpc = null;
+
+    // ---------- UI REFS ----------
+    let cursors, wasdKeys, spaceKey, keyB, keyI, keyC, keyEsc, numKeys = {};
+    let hpBarFill, hpText, mpBarFill, mpText, gratitudeText, locationText, hudLevelText;
+    let dialogueBox, dialogueSpeaker, dialogueText, dialogueIndicator, hintText;
+    let menuElements = [], menuTitleText, menuChoiceText, menuFooterText;
+    let shopElements = [], shopGratitudeText, shopStatusText, shopItemRows = [];
+    let charElements = [], charTabTexts = {}, charBodyContainer;
+    let pauseElements = [];
+
+    // Character screen tabs + state
+    let characterTab = 'character';            // 'character' | 'inventory' | 'magic'
+    let inventorySelectedItem = null;          // item id when action submenu is open
+    let charBodyChildren = [];                 // dynamically rebuilt per tab
+    let shopStatusTimer = null;
+    let sceneRef;
+    let isTransitioning = false;
+
+    // ============================================================
+    //  SAVE / LOAD SYSTEM
+    // ============================================================
+    const SAVE_VERSION = 3;
+    const SAVE_KEY = 'recruiterQuest.save.v1';   // localStorage key kept stable for migration
+
+    function hasSave() {
+      try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; }
+    }
+
+    function saveGame() {
+      try {
+        const data = {
+          version: SAVE_VERSION,
+          savedAt: new Date().toISOString(),
+          player:  { mapId: currentMapId, gridX: playerGridX, gridY: playerGridY, facing: playerFacing },
+          stats:   { hp: playerStats.hp, mp: playerStats.mp, maxHp: playerStats.maxHp, maxMp: playerStats.maxMp, gratitude: playerStats.gratitude },
+          xp: xp,
+          inventory: Object.assign({}, inventory),
+          equipment: Object.assign({}, equipment),
+          defeatedBosses: Array.from(defeatedBosses),
+        };
+        localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+        return true;
+      } catch (e) {
+        console.error('[Recruiter Quest] save failed:', e);
+        return false;
+      }
+    }
+
+    function migrateV1ToV2(v1) {
+      const m = v1.mileage || 0;
+      let newXp;
+      if (m <= 30) newXp = Math.round(m / 30 * (STAGE_1_LEVEL * XP_PER_LEVEL));
+      else if (m <= 100) newXp = (STAGE_1_LEVEL * XP_PER_LEVEL) + Math.round((m - 30) / 70 * ((STAGE_2_LEVEL - STAGE_1_LEVEL) * XP_PER_LEVEL));
+      else newXp = STAGE_2_LEVEL * XP_PER_LEVEL;
+      return Object.assign({}, v1, { version: 2, xp: newXp });
+    }
+
+    function migrateV2ToV3(v2) {
+      return Object.assign({}, v2, { version: 3, defeatedBosses: [] });
+    }
+
+    function loadSaveRaw() {
+      try {
+        const raw = localStorage.getItem(SAVE_KEY);
+        if (!raw) return null;
+        let data = JSON.parse(raw);
+        if (data.version === 1) data = migrateV1ToV2(data);
+        if (data.version === 2) data = migrateV2ToV3(data);
+        if (data.version !== SAVE_VERSION) {
+          console.warn('[Recruiter Quest] unknown save version:', data.version);
+          return null;
+        }
+        return data;
+      } catch (e) {
+        console.error('[Recruiter Quest] load failed:', e);
+        return null;
+      }
+    }
+
+    function applyLoadedSave(data) {
+      currentMapId = data.player.mapId;
+      playerGridX  = data.player.gridX;
+      playerGridY  = data.player.gridY;
+      playerFacing = data.player.facing || 'down';
+
+      playerStats.hp        = data.stats.hp;
+      playerStats.mp        = data.stats.mp;
+      playerStats.maxHp     = data.stats.maxHp;
+      playerStats.maxMp     = data.stats.maxMp;
+      playerStats.gratitude = data.stats.gratitude;
+
+      xp = data.xp || 0;
+      level = levelFromXp(xp);
+
+      for (const k of Object.keys(inventory)) delete inventory[k];
+      Object.assign(inventory, data.inventory || {});
+      equipment.outfit     = data.equipment ? data.equipment.outfit     : null;
+      equipment.accessory1 = data.equipment ? data.equipment.accessory1 : null;
+      equipment.accessory2 = data.equipment ? data.equipment.accessory2 : null;
+
+      defeatedBosses = new Set(data.defeatedBosses || []);
+
+      // Derive story stage from level + defeated-bosses state.
+      // Must happen AFTER defeatedBosses is set so Stage 3 override sees the right data.
+      storyStage = stageFromLevel(level);
+      if (allAnthropicBossesDefeated() && storyStage < 3) storyStage = 3;
+
+      // Recompute max stats from the canonical formula (level + equipment).
+      // This corrects any drift in saves from older balance numbers.
+      recalculateStats();
+    }
+
+    function resetGameStateToDefaults() {
+      currentMapId = 'house';
+      playerGridX = 9; playerGridY = 9; playerFacing = 'down';
+      playerStats.hp = 70; playerStats.mp = 60;
+      playerStats.maxHp = BASE_MAX_HP; playerStats.maxMp = BASE_MAX_MP;
+      playerStats.gratitude = 30;
+      xp = 0; level = 0; storyStage = 0;
+      for (const k of Object.keys(inventory)) delete inventory[k];
+      equipment.outfit = null; equipment.accessory1 = null; equipment.accessory2 = null;
+      defeatedBosses = new Set();
+    }
+
+    function deleteSave() {
+      try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
+    }
+
+    function flashSavedBanner(text) {
+      if (!sceneRef) return;
+      const b = sceneRef.add.text(
+        VIEWPORT_W / 2, HUD_H + 60, text || 'Game saved',
+        { fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#ffd966', stroke: '#000', strokeThickness: 4 }
+      ).setOrigin(0.5).setScrollFactor(0).setDepth(300);
+      sceneRef.tweens.add({
+        targets: b, alpha: { from: 1, to: 0 }, y: HUD_H + 40,
+        duration: 1400, ease: 'Cubic.Out', onComplete: () => b.destroy(),
+      });
+    }
+
+    // ============================================================
+    //  PHASER CONFIG — Menu + Game scenes
+    // ============================================================
+    const MenuScene = {
+      key: 'menu',
+      create: function () {
+        activeSceneKey = 'menu';
+        const s = this;
+        const cx = VIEWPORT_W / 2;
+
+        // Background
+        s.add.rectangle(VIEWPORT_W / 2, TOTAL_H / 2, VIEWPORT_W, TOTAL_H, 0x1a1410);
+
+        // Touch-aware hint copy — phones tap, keyboards press.
+        const isTouchHere = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || window.matchMedia('(pointer: coarse)').matches;
+
+        // Font sizing — Press Start 2P real width metrics: each character occupies
+        // ~0.8 × fontSize horizontally (chunky pixel font). For 9-char words like
+        // "RECRUITER" / "JAY KIM'S" to fit in the 640px canvas with margin:
+        //   9 chars × fontSize × 0.8 ≤ 620   →   fontSize ≤ 86
+        // 45px gives generous breathing room and a comfortable visual hierarchy.
+        const TITLE_PX = 45;
+        const SUB_PX   = 28;
+        const HINT_PX  = 22;
+
+        // Title block — at 45px, line height ~52px works cleanly
+        s.add.text(cx, 60, 'RECRUITER', {
+          fontFamily: '"Press Start 2P"', fontSize: TITLE_PX + 'px', color: '#e8b87d',
+          stroke: '#4a2c1a', strokeThickness: 5,
+        }).setOrigin(0.5);
+        s.add.text(cx, 112, "JAY KIM'S", {
+          fontFamily: '"Press Start 2P"', fontSize: TITLE_PX + 'px', color: '#e8b87d',
+          stroke: '#4a2c1a', strokeThickness: 5,
+        }).setOrigin(0.5);
+        s.add.text(cx, 164, 'QUEST', {
+          fontFamily: '"Press Start 2P"', fontSize: TITLE_PX + 'px', color: '#ffd966',
+          stroke: '#4a2c1a', strokeThickness: 5,
+        }).setOrigin(0.5);
+
+        // Subtitle — sits in the middle of the gap between title and menu
+        s.add.text(cx, 256, 'a Salesforce-to-Anthropic adventure', {
+          fontFamily: 'VT323', fontSize: SUB_PX + 'px', color: '#a88a5e'
+        }).setOrigin(0.5);
+
+        // Menu options — smaller (18px) so confirmation text fits on one line
+        const hasExisting = hasSave();
+        const optionsY = 348;
+        const newGameText = s.add.text(cx, optionsY, '1. NEW GAME', {
+          fontFamily: '"Press Start 2P"', fontSize: '18px', color: '#ffffff',
+        }).setOrigin(0.5);
+        const continueText = s.add.text(cx, optionsY + 38, '2. CONTINUE', {
+          fontFamily: '"Press Start 2P"', fontSize: '18px',
+          color: hasExisting ? '#ffffff' : '#5c4a35',
+        }).setOrigin(0.5);
+
+        // Save metadata under Continue (only when a save exists)
+        if (hasExisting) {
+          const raw = loadSaveRaw();
+          if (raw) {
+            const saveLevel = levelFromXp(raw.xp || 0);
+            const saveStage = stageFromLevel(saveLevel);
+            const stageStr = STAGE_LABELS[saveStage] || 'Stage 0';
+            s.add.text(cx, optionsY + 66, 'Lv ' + saveLevel + ' \u00b7 ' + stageStr, {
+              fontFamily: 'VT323', fontSize: '20px', color: '#8b6f47',
+            }).setOrigin(0.5);
+          }
+        }
+
+        // Pulse hint at the bottom
+        const hint = s.add.text(cx, TOTAL_H - 22, (isTouchHere ? 'tap' : 'press') + ' [1] or [2]', {
+          fontFamily: 'VT323', fontSize: HINT_PX + 'px', color: '#d4a574',
+        }).setOrigin(0.5);
+        s.tweens.add({ targets: hint, alpha: { from: 1, to: 0.3 }, duration: 900, yoyo: true, repeat: -1 });
+
+        // Key handlers
+        const kb = s.input.keyboard;
+        const key1 = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ONE);
+        const key2 = kb.addKey(Phaser.Input.Keyboard.KeyCodes.TWO);
+        let newGameConfirmPending = false;
+        function menuChoose(n) {
+          if (n === 1) {
+            if (hasExisting && !newGameConfirmPending) {
+              newGameConfirmPending = true;
+              newGameText.setText('1. PRESS 1 AGAIN TO OVERWRITE');
+              newGameText.setColor('#ff9933');
+              return;
+            }
+            s.scene.start('game', { mode: 'new' });
+          } else if (n === 2) {
+            if (!hasExisting) return;
+            s.scene.start('game', { mode: 'continue' });
+          }
+        }
+        key1.on('down', () => menuChoose(1));
+        key2.on('down', () => menuChoose(2));
+
+        // Touch hook — DOM number buttons route here when menu is active.
+        window.__menuTouch = { number: menuChoose };
+        s.events.once('shutdown', () => { window.__menuTouch = null; });
+      },
+    };
+
+    const GameScene = {
+      key: 'game',
+      create: function (data) {
+        sceneRef = this;
+        activeSceneKey = 'game';
+        touchDir = null;  // clear any stale touch state from previous scene
+
+        // Reset gameplay state — these are module-level globals that persist
+        // across scene restarts. Always start from a clean overworld state.
+        gameMode = 'overworld';
+        isMoving = false;
+        isTransitioning = false;
+        currentMenuNpc = null;
+        currentSpeakerNpc = null;
+        currentLines = []; currentLineIndex = 0;
+        isTyping = false; fullText = '';
+        typeTimer = null;
+
+        // Determine starting state based on launch mode
+        const mode = (data && data.mode) || 'new';
+        if (mode === 'continue') {
+          const raw = loadSaveRaw();
+          if (raw) applyLoadedSave(raw);
+          else resetGameStateToDefaults();
+        } else if (mode === 'resume') {
+          // Returning from battle — keep current state, just rebuild visuals.
+          // Handle defeat: respawn at home with half HP.
+          if (data && data.result === 'lost') {
+            currentMapId = 'house';
+            playerGridX = 9; playerGridY = 9; playerFacing = 'down';
+            playerStats.hp = Math.max(1, Math.floor(playerStats.maxHp / 2));
+            playerStats.mp = Math.max(0, Math.floor(playerStats.maxMp / 2));
+          }
+        } else {
+          // 'new'
+          deleteSave();
+          resetGameStateToDefaults();
+        }
+
+        createHud();
+        createBottomUi();
+        createNpcMenuUi();
+        createShopUi();
+        createCharacterUi();
+        createPauseUi();
+        createPlayer();
+        createMap();
+        createNpcs();
+        bindKeys();
+
+        setupCameraForMap();
+        updateHud();
+        updateLocationLabel();
+
+        if (mode === 'continue') {
+          this.cameras.main.fadeFrom(220, 26, 20, 16);
+          this.time.delayedCall(240, () => flashSavedBanner('Save loaded'));
+        } else if (mode === 'resume') {
+          this.cameras.main.fadeFrom(260, 26, 20, 16);
+          if (data && data.result === 'won') {
+            const xpPart = '+' + data.xpGained + ' XP';
+            const gratPart = data.gratitudeGained > 0 ? '  +' + data.gratitudeGained + ' \u2665' : '';
+            this.time.delayedCall(260, () => flashSavedBanner('Victory \u00b7 ' + xpPart + gratPart));
+          } else if (data && data.result === 'lost') {
+            this.time.delayedCall(260, () => flashSavedBanner('You blacked out\u2026 home, half HP'));
+          } else if (data && data.result === 'fled') {
+            this.time.delayedCall(260, () => flashSavedBanner('Escaped'));
+          }
+          saveGame();   // post-battle checkpoint
+        }
+      },
+      update: function () {
+        updateFacingIndicator();
+        if (gameMode !== 'overworld' || isTransitioning) return;
+        if (isMoving) { updateHint(); return; }
+
+        let dx = 0, dy = 0;
+        if      (cursors.left.isDown  || wasdKeys.A.isDown || touchDir === 'left')  { dx = -1; playerFacing = 'left'; }
+        else if (cursors.right.isDown || wasdKeys.D.isDown || touchDir === 'right') { dx =  1; playerFacing = 'right'; }
+        else if (cursors.up.isDown    || wasdKeys.W.isDown || touchDir === 'up')    { dy = -1; playerFacing = 'up'; }
+        else if (cursors.down.isDown  || wasdKeys.S.isDown || touchDir === 'down')  { dy =  1; playerFacing = 'down'; }
+
+        updateHint();
+        if (dx === 0 && dy === 0) return;
+
+        const tx = playerGridX + dx, ty = playerGridY + dy;
+        if (!canWalkTo(tx, ty)) return;
+
+        isMoving = true;
+        playerGridX = tx; playerGridY = ty;
+        const p = tileToPixel(tx, ty);
+        this.tweens.add({
+          targets: [player, playerLabel],
+          x: p.x, y: p.y,
+          duration: 160, ease: 'Linear',
+          onComplete: () => {
+            isMoving = false;
+            checkExitTrigger();
+          },
+        });
+      },
+    };
+
+    // ============================================================
+    //  BATTLE SCENE
+    // ============================================================
+    const BattleScene = {
+      key: 'battle',
+      create: function (data) {
+        const scene = this;
+        activeSceneKey = 'battle';
+        touchDir = null;  // no movement in battle
+        const boss = bosses[data.bossId];
+        if (!boss) { scene.scene.start('game', { mode: 'resume' }); return; }
+
+        // ---- Battle state (scene-local) ----
+        const battle = {
+          boss: boss,
+          enemyHp: boss.hp,
+          enemyHpMax: boss.hp,
+          mode: 'main',                 // 'main' | 'skill' | 'item' | 'message' | 'animating' | 'over'
+          turn: 'player',
+          log: [],
+          ended: false,
+          result: null,
+          xpGained: 0,
+        };
+
+        // ---- Layout constants ----
+        const W = VIEWPORT_W;
+        const HUD_TOP = 0;
+        const ENEMY_TOP = HUD_H;
+        const ENEMY_H = 180;
+        const LOG_TOP = ENEMY_TOP + ENEMY_H;
+        const LOG_H = 130;
+        const ACTION_TOP = LOG_TOP + LOG_H;
+        const ACTION_H = TOTAL_H - ACTION_TOP;
+
+        // ---- BG ----
+        scene.add.rectangle(W / 2, TOTAL_H / 2, W, TOTAL_H, 0x1a1410);
+
+        // ---- HUD strip (matches GameScene visual) ----
+        scene.add.rectangle(W / 2, HUD_H / 2, W, HUD_H, 0x2a1f17);
+        scene.add.rectangle(W / 2, HUD_H - 1, W, 2, 0x4a2c1a);
+        const y0 = HUD_H / 2;
+        scene.add.text(14, y0, 'LV', { fontFamily: '"Press Start 2P"', fontSize: '10px', color: '#ffd966' }).setOrigin(0, 0.5);
+        const lvNum = scene.add.text(42, y0, String(level), { fontFamily: 'VT323', fontSize: '22px', color: '#ffd966' }).setOrigin(0, 0.5);
+        scene.add.text(78, y0, 'HP', { fontFamily: '"Press Start 2P"', fontSize: '10px', color: '#e87da9' }).setOrigin(0, 0.5);
+        scene.add.rectangle(110, y0, 80, 12, 0x2a0e0a).setOrigin(0, 0.5).setStrokeStyle(1, 0x8b6f47);
+        const hpFill = scene.add.rectangle(110, y0, 80, 12, 0xc23b22).setOrigin(0, 0.5);
+        const hpNum  = scene.add.text(199, y0, '', { fontFamily: 'VT323', fontSize: '18px', color: '#ffffff' }).setOrigin(0, 0.5);
+        scene.add.text(290, y0, 'MP', { fontFamily: '"Press Start 2P"', fontSize: '10px', color: '#4a90e2' }).setOrigin(0, 0.5);
+        scene.add.rectangle(322, y0, 80, 12, 0x0a1a2a).setOrigin(0, 0.5).setStrokeStyle(1, 0x8b6f47);
+        const mpFill = scene.add.rectangle(322, y0, 80, 12, 0x4a90e2).setOrigin(0, 0.5);
+        const mpNum  = scene.add.text(411, y0, '', { fontFamily: 'VT323', fontSize: '18px', color: '#ffffff' }).setOrigin(0, 0.5);
+
+        function refreshHud() {
+          lvNum.setText(String(level));
+          hpFill.width = Math.max(0, 80 * (playerStats.hp / playerStats.maxHp));
+          hpNum.setText(playerStats.hp + '/' + playerStats.maxHp);
+          mpFill.width = Math.max(0, 80 * (playerStats.mp / playerStats.maxMp));
+          mpNum.setText(playerStats.mp + '/' + playerStats.maxMp);
+        }
+        refreshHud();
+
+        // ---- Enemy area ----
+        scene.add.rectangle(W / 2, ENEMY_TOP + ENEMY_H / 2, W, ENEMY_H, 0x2a1f17);
+        scene.add.rectangle(W / 2, ENEMY_TOP, W, 2, 0x4a2c1a);
+
+        const enemyTitle = scene.add.text(W / 2, ENEMY_TOP + 20, boss.name, {
+          fontFamily: '"Press Start 2P"', fontSize: '14px', color: '#ffd966',
+        }).setOrigin(0.5);
+        scene.add.text(W / 2, ENEMY_TOP + 42, '— ' + boss.title + ' —', {
+          fontFamily: 'VT323', fontSize: '18px', color: '#a8a89a',
+        }).setOrigin(0.5);
+
+        // Enemy "sprite" (colored block + letter, same vocabulary as overworld NPCs)
+        const enemyBlock = scene.add.rectangle(W / 2, ENEMY_TOP + 100, 56, 56, boss.color);
+        scene.add.text(W / 2, ENEMY_TOP + 100, boss.letter, {
+          fontFamily: '"Press Start 2P"', fontSize: '22px', color: '#1a1410',
+        }).setOrigin(0.5);
+
+        // Enemy HP bar
+        const ebarY = ENEMY_TOP + 148;
+        scene.add.text(W / 2 - 160, ebarY, 'HP', { fontFamily: '"Press Start 2P"', fontSize: '10px', color: '#e87da9' }).setOrigin(0, 0.5);
+        scene.add.rectangle(W / 2 - 130, ebarY, 240, 14, 0x2a0e0a).setOrigin(0, 0.5).setStrokeStyle(1, 0x8b6f47);
+        const enemyHpFill = scene.add.rectangle(W / 2 - 130, ebarY, 240, 14, 0xc23b22).setOrigin(0, 0.5);
+        const enemyHpText = scene.add.text(W / 2 + 124, ebarY, '', { fontFamily: 'VT323', fontSize: '18px', color: '#ffffff' }).setOrigin(0, 0.5);
+
+        function refreshEnemyHp() {
+          const pct = Math.max(0, battle.enemyHp / battle.enemyHpMax);
+          enemyHpFill.width = 240 * pct;
+          enemyHpText.setText(battle.enemyHp + '/' + battle.enemyHpMax);
+        }
+        refreshEnemyHp();
+
+        // ---- Battle log area ----
+        scene.add.rectangle(W / 2, LOG_TOP + LOG_H / 2, W, LOG_H, 0x1a1410);
+        scene.add.rectangle(W / 2, LOG_TOP, W, 2, 0x4a2c1a);
+        const logText = scene.add.text(24, LOG_TOP + 18, '', {
+          fontFamily: 'VT323', fontSize: '22px', color: '#ffffff', wordWrap: { width: W - 48 }, lineSpacing: 4,
+        });
+        const logIndicator = scene.add.text(W - 24, LOG_TOP + LOG_H - 20, '\u25BC', {
+          fontFamily: 'VT323', fontSize: '18px', color: '#d4a574'
+        }).setOrigin(1, 0.5);
+        logIndicator.setVisible(false);
+
+        let logTimer = null;
+        let logTyping = false;
+        let logFullText = '';
+        let logCallback = null;
+
+        function showLog(message, onDone) {
+          logTyping = true;
+          logFullText = message;
+          logText.setText('');
+          logIndicator.setVisible(false);
+          logCallback = onDone;
+          if (logTimer) logTimer.remove();
+          let i = 0;
+          const t = scene.time.addEvent({
+            delay: 22, loop: true,
+            callback: () => {
+              if (logTimer !== t) return;
+              i++;
+              logText.setText(logFullText.substring(0, i));
+              if (i >= logFullText.length) {
+                t.remove(); logTimer = null; logTyping = false;
+                logIndicator.setVisible(true);
+              }
+            }
+          });
+          logTimer = t;
+        }
+
+        function skipTypewriter() {
+          if (logTyping && logTimer) {
+            logTimer.remove(); logTimer = null; logTyping = false;
+            logText.setText(logFullText);
+            logIndicator.setVisible(true);
+          }
+        }
+
+        function advanceLog() {
+          if (logTyping) { skipTypewriter(); return; }
+          logIndicator.setVisible(false);
+          const cb = logCallback;
+          logCallback = null;
+          if (cb) cb();
+        }
+
+        // ---- Action area ----
+        scene.add.rectangle(W / 2, ACTION_TOP + ACTION_H / 2, W, ACTION_H, 0x2a1f17);
+        scene.add.rectangle(W / 2, ACTION_TOP, W, 2, 0x4a2c1a);
+
+        // Action menu — laid out as 2x2 grid
+        const menuTitle = scene.add.text(24, ACTION_TOP + 14, 'CHOOSE AN ACTION', {
+          fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#e8b87d',
+        });
+        const a1 = scene.add.text(40, ACTION_TOP + 50, '1. Attack', { fontFamily: 'VT323', fontSize: '24px', color: '#ffffff' });
+        const a2 = scene.add.text(240, ACTION_TOP + 50, '2. Skill', { fontFamily: 'VT323', fontSize: '24px', color: '#ffffff' });
+        const a3 = scene.add.text(40, ACTION_TOP + 84, '3. Item', { fontFamily: 'VT323', fontSize: '24px', color: '#ffffff' });
+        const a4 = scene.add.text(240, ACTION_TOP + 84, '4. Run', { fontFamily: 'VT323', fontSize: '24px', color: '#ffffff' });
+        const actionFooter = scene.add.text(W - 24, ACTION_TOP + ACTION_H - 14, 'Press 1-4', {
+          fontFamily: 'VT323', fontSize: '16px', color: '#8b6f47'
+        }).setOrigin(1, 1);
+        const mainMenuElements = [menuTitle, a1, a2, a3, a4, actionFooter];
+
+        // Submenu container (skills / items) — built dynamically
+        let subMenuElements = [];
+        function clearSubMenu() { subMenuElements.forEach(e => e.destroy()); subMenuElements = []; }
+
+        function setMainMenuVisible(v) { mainMenuElements.forEach(e => e.setVisible(v)); }
+
+        // ---- Combat math ----
+        function calcPlayerAttack() {
+          const r = calcAttackRange();
+          return r.min + Math.floor(Math.random() * (r.max - r.min + 1));
+        }
+        function calcSkillDamage(skillId) {
+          const sk = skills[skillId];
+          return Math.max(1, sk.damage + level * 2);
+        }
+        function calcEnemyAttack() {
+          return Math.max(1, boss.attack + Math.floor(Math.random() * 3) - 1);
+        }
+
+        // 7 recruiting-themed attack flavors — randomized per swing
+        const PLAYER_ATTACK_LINES = [
+          'Jay swings Expectation Management.',
+          'Jay deploys Mirroring Tactics.',
+          'Jay pulls up a Tableau dashboard. Data hits.',
+          'Jay drops a calibrated reference check.',
+          'Jay invokes STAR-method reasoning.',
+          'Jay reframes it as a win-win. Hard to argue.',
+          'Jay cites a 9-box assessment. Devastating.',
+        ];
+
+        // ---- Player actions ----
+        function doPlayerAttack() {
+          setMainMenuVisible(false);
+          const dmg = calcPlayerAttack();
+          const flavor = PLAYER_ATTACK_LINES[Math.floor(Math.random() * PLAYER_ATTACK_LINES.length)];
+          showLog(flavor + ' ' + dmg + ' damage!', () => {
+            applyEnemyDamage(dmg, () => afterPlayerAction());
+          });
+        }
+
+        function showSkillMenu() {
+          setMainMenuVisible(false);
+          clearSubMenu();
+          const learned = learnedSkills();
+          const header = scene.add.text(24, ACTION_TOP + 14, 'SKILLS', { fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#c084fc' });
+          subMenuElements.push(header);
+          if (learned.length === 0) {
+            const empty = scene.add.text(40, ACTION_TOP + 50, 'No skills learned. Equip a legendary item.', {
+              fontFamily: 'VT323', fontSize: '20px', color: '#8b6f47', wordWrap: { width: W - 80 },
+            });
+            const back = scene.add.text(40, ACTION_TOP + 84, '0. Back', { fontFamily: 'VT323', fontSize: '22px', color: '#ffffff' });
+            subMenuElements.push(empty, back);
+            battle.mode = 'skill';
+            return;
+          }
+          learned.forEach((skillId, i) => {
+            const sk = skills[skillId];
+            const canUse = playerStats.mp >= sk.mpCost;
+            const color = canUse ? TIER_COLORS[sk.tier] : '#5c4a35';
+            const row = scene.add.text(40, ACTION_TOP + 44 + i * 28,
+              (i + 1) + '. ' + sk.name + '  (' + sk.mpCost + ' MP)', {
+              fontFamily: 'VT323', fontSize: '20px', color: color,
+            });
+            subMenuElements.push(row);
+          });
+          const back = scene.add.text(40, ACTION_TOP + ACTION_H - 26, '0. Back', { fontFamily: 'VT323', fontSize: '20px', color: '#8b6f47' });
+          subMenuElements.push(back);
+          battle.mode = 'skill';
+        }
+
+        function showItemMenu() {
+          setMainMenuVisible(false);
+          clearSubMenu();
+          const header = scene.add.text(24, ACTION_TOP + 14, 'ITEMS', { fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#4a90e2' });
+          subMenuElements.push(header);
+          const usable = ownedItemList().filter(({ id }) => items[id].effect === 'hp' || items[id].effect === 'mp').slice(0, 5);
+          if (usable.length === 0) {
+            const empty = scene.add.text(40, ACTION_TOP + 50, 'No usable items.', {
+              fontFamily: 'VT323', fontSize: '20px', color: '#8b6f47',
+            });
+            const back = scene.add.text(40, ACTION_TOP + 84, '0. Back', { fontFamily: 'VT323', fontSize: '22px', color: '#ffffff' });
+            subMenuElements.push(empty, back);
+            battle.mode = 'item';
+            return;
+          }
+          usable.forEach(({ id, qty }, i) => {
+            const it = items[id];
+            const desc = it.effect === 'hp' ? '+' + it.amount + ' HP' : '+' + it.amount + ' MP';
+            const color = TIER_COLORS[it.tier];
+            const row = scene.add.text(40, ACTION_TOP + 44 + i * 24,
+              (i + 1) + '. ' + it.name + ' x' + qty + '  (' + desc + ')', {
+              fontFamily: 'VT323', fontSize: '18px', color: color,
+            });
+            subMenuElements.push(row);
+          });
+          const back = scene.add.text(40, ACTION_TOP + ACTION_H - 26, '0. Back', { fontFamily: 'VT323', fontSize: '18px', color: '#8b6f47' });
+          subMenuElements.push(back);
+          battle.mode = 'item';
+        }
+
+        function returnToMainMenu() {
+          clearSubMenu();
+          setMainMenuVisible(true);
+          battle.mode = 'main';
+        }
+
+        function castSkill(skillId) {
+          const sk = skills[skillId];
+          if (playerStats.mp < sk.mpCost) return;
+          playerStats.mp -= sk.mpCost;
+          refreshHud();
+          clearSubMenu();
+          const dmg = calcSkillDamage(skillId);
+          showLog('Jay casts ' + sk.name + '! ' + dmg + ' magic damage!', () => {
+            applyEnemyDamage(dmg, () => afterPlayerAction());
+          });
+        }
+
+        function useItem(itemId) {
+          const it = items[itemId];
+          if (!inventory[itemId]) return;
+          let healed = '';
+          if (it.effect === 'hp') {
+            const g = Math.min(it.amount, playerStats.maxHp - playerStats.hp);
+            playerStats.hp += g;
+            healed = '+' + g + ' HP';
+          } else if (it.effect === 'mp') {
+            const g = Math.min(it.amount, playerStats.maxMp - playerStats.mp);
+            playerStats.mp += g;
+            healed = '+' + g + ' MP';
+          }
+          inventory[itemId]--;
+          if (inventory[itemId] <= 0) delete inventory[itemId];
+          refreshHud();
+          clearSubMenu();
+          showLog('Used ' + it.name + '. ' + healed + '.', () => afterPlayerAction());
+        }
+
+        function tryRun() {
+          setMainMenuVisible(false);
+          if (!boss.canRun) {
+            showLog(boss.name + ' blocks your retreat. There\'s no walking away from this.', () => {
+              showLog(boss.name + ' attacks anyway!', () => enemyTurn());
+            });
+            return;
+          }
+          const success = Math.random() < 0.6;
+          if (success) {
+            battle.ended = true;
+            battle.result = 'fled';
+            showLog('You break eye contact and walk away.', () => endBattle());
+          } else {
+            showLog(boss.name + ' steps into your path. Couldn\'t escape!', () => enemyTurn());
+          }
+        }
+
+        // ---- Damage application ----
+        function applyEnemyDamage(dmg, onDone) {
+          battle.enemyHp = Math.max(0, battle.enemyHp - dmg);
+          scene.tweens.add({ targets: enemyBlock, alpha: 0.3, duration: 80, yoyo: true, repeat: 2 });
+          refreshEnemyHp();
+          scene.time.delayedCall(500, onDone);
+        }
+        function applyPlayerDamage(dmg, onDone) {
+          playerStats.hp = Math.max(0, playerStats.hp - dmg);
+          refreshHud();
+          scene.cameras.main.shake(180, 0.005);
+          scene.time.delayedCall(500, onDone);
+        }
+
+        // ---- Turn flow ----
+        function afterPlayerAction() {
+          if (battle.enemyHp <= 0) {
+            playerWon();
+          } else {
+            enemyTurn();
+          }
+        }
+        function enemyTurn() {
+          const raw = calcEnemyAttack();
+          const def = getDefense();
+          const dmg = Math.max(1, raw - def);
+          const blocked = raw - dmg;
+          const taunt = battle.boss.attackLines[Math.floor(Math.random() * battle.boss.attackLines.length)];
+          const dmgPart = blocked > 0
+            ? dmg + ' damage. (DEF blocked ' + blocked + ')'
+            : dmg + ' damage!';
+          showLog(taunt + ' ' + dmgPart, () => {
+            applyPlayerDamage(dmg, () => {
+              if (playerStats.hp <= 0) playerLost();
+              else { setMainMenuVisible(true); battle.mode = 'main'; }
+            });
+          });
+        }
+        function playerWon() {
+          battle.ended = true;
+          battle.result = 'won';
+          const xpReward = battle.boss.xpReward;
+          const gratReward = battle.boss.gratitudeReward || 0;
+          const defeatLine = battle.boss.defeatLines[Math.floor(Math.random() * battle.boss.defeatLines.length)];
+          showLog(battle.boss.name + ' is defeated. ' + defeatLine, () => {
+            const rewardLine = gratReward > 0
+              ? 'Jay earned ' + xpReward + ' XP and ' + gratReward + ' \u2665.'
+              : 'Jay earned ' + xpReward + ' XP.';
+            showLog(rewardLine, () => {
+              defeatedBosses.add(battle.boss.id);
+              if (gratReward > 0) playerStats.gratitude += gratReward;
+              addXp(xpReward);              // may trigger level-up full heal + banner
+              refreshHud();
+              battle.xpGained = xpReward;
+              battle.gratitudeGained = gratReward;
+              endBattle();
+            });
+          });
+        }
+        function playerLost() {
+          battle.ended = true;
+          battle.result = 'lost';
+          showLog('Jay blacked out from exhaustion\u2026', () => {
+            showLog('(He\'ll wake up at home, half restored.)', () => endBattle());
+          });
+        }
+
+        function endBattle() {
+          isTransitioning = true;
+          scene.cameras.main.fadeOut(280, 26, 20, 16);
+          scene.time.delayedCall(300, () => {
+            scene.scene.start('game', { mode: 'resume', result: battle.result, xpGained: battle.xpGained });
+          });
+        }
+
+        // ---- Intro sequence ----
+        setMainMenuVisible(false);
+        scene.cameras.main.fadeIn(280, 26, 20, 16);
+        scene.time.delayedCall(320, () => {
+          const introIdx = Math.floor(Math.random() * boss.introLines.length);
+          showLog(boss.name + ' appears!  ' + boss.introLines[introIdx], () => {
+            setMainMenuVisible(true);
+            battle.mode = 'main';
+          });
+        });
+
+        // ---- Input ----
+        const kb = scene.input.keyboard;
+        const kSpace = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+        const k0 = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ZERO);
+        const k1 = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ONE);
+        const k2 = kb.addKey(Phaser.Input.Keyboard.KeyCodes.TWO);
+        const k3 = kb.addKey(Phaser.Input.Keyboard.KeyCodes.THREE);
+        const k4 = kb.addKey(Phaser.Input.Keyboard.KeyCodes.FOUR);
+        const k5 = kb.addKey(Phaser.Input.Keyboard.KeyCodes.FIVE);
+        const kB = kb.addKey(Phaser.Input.Keyboard.KeyCodes.B);
+
+        kSpace.on('down', () => {
+          // Space always advances the log — it's safe when there's nothing to advance,
+          // and we need it working during victory/loss/flee messages (battle.ended is
+          // set BEFORE those messages are shown). Number-key dispatch handles its own
+          // input-locking via battle.ended.
+          advanceLog();
+        });
+
+        function handleMain(n) {
+          if (n === 1) doPlayerAttack();
+          else if (n === 2) showSkillMenu();
+          else if (n === 3) showItemMenu();
+          else if (n === 4) tryRun();
+        }
+        function handleSkill(n) {
+          if (n === 0) { returnToMainMenu(); return; }
+          const learned = learnedSkills();
+          if (n < 1 || n > learned.length) return;
+          const sk = skills[learned[n - 1]];
+          if (playerStats.mp < sk.mpCost) return;
+          castSkill(learned[n - 1]);
+        }
+        function handleItem(n) {
+          if (n === 0) { returnToMainMenu(); return; }
+          const usable = ownedItemList().filter(({ id }) => items[id].effect === 'hp' || items[id].effect === 'mp').slice(0, 5);
+          if (n < 1 || n > usable.length) return;
+          useItem(usable[n - 1].id);
+        }
+
+        function dispatch(n) {
+          if (battle.ended || logTyping || logCallback) return;
+          if (battle.mode === 'main')  return handleMain(n);
+          if (battle.mode === 'skill') return handleSkill(n);
+          if (battle.mode === 'item')  return handleItem(n);
+        }
+
+        k0.on('down', () => dispatch(0));
+        k1.on('down', () => dispatch(1));
+        k2.on('down', () => dispatch(2));
+        k3.on('down', () => dispatch(3));
+        k4.on('down', () => dispatch(4));
+        k5.on('down', () => dispatch(5));
+        kB.on('down', () => {
+          if (battle.ended) return;
+          if (battle.mode === 'skill' || battle.mode === 'item') returnToMainMenu();
+        });
+
+        // ---- Touch hooks ----
+        // DOM touch buttons call into these so mobile players get the same dispatch
+        // as keyboard players. Cleared on scene shutdown to avoid stale references.
+        window.__battleTouch = {
+          number: dispatch,
+          space:  advanceLog,
+          back:   () => {
+            if (battle.ended) return;
+            if (battle.mode === 'skill' || battle.mode === 'item') returnToMainMenu();
+          },
+        };
+        scene.events.once('shutdown', () => { window.__battleTouch = null; });
+      },
+    };
+
+    // ============================================================
+    //  ZOOM PREVENTION
+    // ============================================================
+    // Block zoom paths that CSS touch-action can't cover. We deliberately do NOT
+    // block keydown defaults — that turned out to cause Chrome to interpret arrow
+    // keys as zoom commands on some setups. Phaser handles arrow-key input on the
+    // canvas without needing a global preventDefault.
+    (function blockZoom() {
+      // iOS Safari gesture events — fired during pinch
+      window.addEventListener('gesturestart',  e => e.preventDefault());
+      window.addEventListener('gesturechange', e => e.preventDefault());
+      window.addEventListener('gestureend',    e => e.preventDefault());
+
+      // Desktop Ctrl/Cmd + wheel zoom
+      window.addEventListener('wheel', e => {
+        if (e.ctrlKey || e.metaKey) e.preventDefault();
+      }, { passive: false });
+
+      // Block double-tap zoom on iOS — track last tap time
+      let lastTouchEnd = 0;
+      document.addEventListener('touchend', e => {
+        const now = Date.now();
+        if (now - lastTouchEnd <= 300) e.preventDefault();
+        lastTouchEnd = now;
+      }, { passive: false });
+    })();
+
+    // ============================================================
+    //  FONT LOADING — wait before Phaser starts
+    // ============================================================
+    // Bug fixed in 6.9: Press Start 2P would sometimes not be loaded when Phaser
+    // rendered the title screen, falling back to monospace and making the title
+    // appear capped at a small size regardless of fontSize values. document.fonts.load
+    // forces a guaranteed wait for the fonts before any text is drawn.
+    function startGame() {
+      new Phaser.Game({
+        type: Phaser.AUTO,
+        width: VIEWPORT_W,
+        height: TOTAL_H,
+        parent: 'game',
+        backgroundColor: '#1a1410',
+        scene: [MenuScene, GameScene, BattleScene],
+        // No scale manager — canvas is fixed at native size, CSS scales it visually.
+        // Using Scale.FIT here caused a layout feedback loop where the #game parent
+        // and Phaser's resize manager fought each other on key events.
+      });
+    }
+
+    if (document.fonts && document.fonts.load) {
+      Promise.all([
+        // Force-load at sizes we actually use so the browser caches the right metrics.
+        document.fonts.load('45px "Press Start 2P"'),
+        document.fonts.load('24px "Press Start 2P"'),
+        document.fonts.load('36px "VT323"'),
+        document.fonts.load('24px "VT323"'),
+      ])
+      .then(() => document.fonts.ready)
+      .then(startGame)
+      .catch(() => { startGame(); });   // never block on font failure
+    } else {
+      // Old browser: just start and hope for the best
+      startGame();
+    }
+
+    // ============================================================
+    //  TOUCH CONTROLS — DOM bindings
+    // ============================================================
+    // Detect touch capability. We show controls on:
+    //   - any device with touch support (ontouchstart in window)
+    //   - any device with coarse pointer (most phones/tablets)
+    //   - small viewports (so iPad+keyboard users can still see them)
+    function isTouchDevice() {
+      return ('ontouchstart' in window)
+          || (navigator.maxTouchPoints > 0)
+          || window.matchMedia('(pointer: coarse)').matches;
+    }
+    if (isTouchDevice()) {
+      document.body.classList.add('touch-device');
+    }
+
+    // ---- Dispatchers that route to the active scene ----
+    function dispatchTouchNumber(n) {
+      if (activeSceneKey === 'battle' && window.__battleTouch) return window.__battleTouch.number(n);
+      if (activeSceneKey === 'menu'   && window.__menuTouch)   return window.__menuTouch.number(n);
+      if (activeSceneKey === 'game')                            return handleNumberKey(n);
+    }
+    function dispatchTouchSpace() {
+      if (activeSceneKey === 'battle' && window.__battleTouch) return window.__battleTouch.space();
+      // Menu uses numbers (1 / 2) for choices, so A acts as "press 1" — most-used default.
+      if (activeSceneKey === 'menu'   && window.__menuTouch)   return window.__menuTouch.number(1);
+      if (activeSceneKey === 'game')                            return handleSpacePress();
+    }
+    function dispatchTouchBack() {
+      if (activeSceneKey === 'battle' && window.__battleTouch) return window.__battleTouch.back();
+      if (activeSceneKey === 'game')                            return handleBackKey();
+    }
+    function dispatchTouchInventory() {
+      if (activeSceneKey === 'game') return handleInventoryKey();
+    }
+    function dispatchTouchCharacter() {
+      if (activeSceneKey === 'game') return handleCharacterKey();
+    }
+    function dispatchTouchEsc() {
+      if (activeSceneKey === 'game') return handleEscKey();
+    }
+
+    // ---- Wire DOM buttons ----
+    // We use pointer events for unified mouse+touch handling. preventDefault on
+    // pointerdown stops the synthetic click that would otherwise fire 300ms later
+    // (some browsers) and prevents the button from stealing focus from the canvas.
+    (function wireTouchControls() {
+      const container = document.getElementById('touchControls');
+      if (!container) return;
+
+      const buttons = container.querySelectorAll('[data-touch]');
+      buttons.forEach(btn => {
+        const kind = btn.getAttribute('data-touch');
+
+        // D-pad: hold-to-move semantics via touchDir
+        if (kind === 'up' || kind === 'down' || kind === 'left' || kind === 'right') {
+          const setDir = (e) => {
+            e.preventDefault();
+            // Special case: in the character screen, left/right switch tabs
+            // (matches the keyboard cursors.left/right.on('down') behavior).
+            // Don't engage touchDir — just fire the tab switch as a one-shot.
+            if (gameMode === 'character' && (kind === 'left' || kind === 'right')) {
+              if (!isTransitioning && !inventorySelectedItem) {
+                switchCharacterTab(kind === 'left' ? -1 : 1);
+              }
+              btn.classList.add('held');
+              setTimeout(() => btn.classList.remove('held'), 120);
+              return;
+            }
+            touchDir = kind;
+            btn.classList.add('held');
+          };
+          const clearDir = (e) => {
+            e.preventDefault();
+            if (touchDir === kind) touchDir = null;
+            btn.classList.remove('held');
+          };
+          btn.addEventListener('pointerdown',   setDir);
+          btn.addEventListener('pointerup',     clearDir);
+          btn.addEventListener('pointercancel', clearDir);
+          btn.addEventListener('pointerleave',  clearDir);
+          // Block context menu on long-press
+          btn.addEventListener('contextmenu', e => e.preventDefault());
+          return;
+        }
+
+        // One-shot taps for everything else (A/B/numbers/icons)
+        btn.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          if (kind === 'space') dispatchTouchSpace();
+          else if (kind === 'b') dispatchTouchBack();
+          else if (kind === 'i') dispatchTouchInventory();
+          else if (kind === 'c') dispatchTouchCharacter();
+          else if (kind === 'esc') dispatchTouchEsc();
+          else if (kind === 'num') {
+            const n = parseInt(btn.getAttribute('data-n'), 10);
+            if (!isNaN(n)) dispatchTouchNumber(n);
+          }
+        });
+        btn.addEventListener('contextmenu', e => e.preventDefault());
+      });
+
+      // Safety: if the user drags their finger off a D-pad button while still
+      // touching the screen, clear touchDir globally on any pointerup.
+      window.addEventListener('pointerup', () => {
+        touchDir = null;
+        container.querySelectorAll('.touch-btn.held').forEach(b => b.classList.remove('held'));
+      });
+    })();
+
+    // ============================================================
+    //  MAP TRANSITION
+    // ============================================================
+    function checkExitTrigger() {
+      const key = playerGridX + ',' + playerGridY;
+      const exit = maps[currentMapId].exits[key];
+      if (!exit) return;
+      switchMap(exit.to, exit.x, exit.y, exit.facing);
+    }
+
+    function switchMap(mapId, spawnX, spawnY, facing) {
+      isTransitioning = true;
+      sceneRef.cameras.main.fadeOut(220, 26, 20, 16);
+
+      sceneRef.time.delayedCall(240, () => {
+        // Destroy old map visuals
+        activeTileObjects.forEach(o => o.destroy());
+        activeTileObjects = [];
+        activeNpcObjects.forEach(o => o.destroy());
+        activeNpcObjects = [];
+
+        // Update state
+        currentMapId = mapId;
+        playerGridX = spawnX;
+        playerGridY = spawnY;
+        playerFacing = facing || 'down';
+
+        // Rebuild visuals for new map
+        createMap();
+        createNpcs();
+
+        // Reposition player
+        const p = tileToPixel(spawnX, spawnY);
+        player.x = p.x;  player.y = p.y;
+        playerLabel.x = p.x; playerLabel.y = p.y;
+
+        // Camera bounds change per map
+        setupCameraForMap();
+        updateLocationLabel();
+
+        sceneRef.cameras.main.fadeIn(220, 26, 20, 16);
+        sceneRef.time.delayedCall(240, () => {
+          isTransitioning = false;
+          updateHint();
+          // Auto-save: map transitions are natural checkpoints
+          saveGame();
+        });
+      });
+    }
+
+    function setupCameraForMap() {
+      const m = maps[currentMapId];
+      const w = m.layout[0].length * TILE_SIZE;
+      const h = m.layout.length * TILE_SIZE;
+      // Bounds = HUD strip + map area + UI strip in world coords
+      sceneRef.cameras.main.setBounds(0, 0, w, MAP_OFFSET_Y + h + UI_H);
+      sceneRef.cameras.main.startFollow(player, true, 0.18, 0.18);
+    }
+
+    // ============================================================
+    //  HUD (top strip — fixed on screen)
+    // ============================================================
+    function createHud() {
+      const s = sceneRef;
+      const bg     = s.add.rectangle(VIEWPORT_W / 2, HUD_H / 2, VIEWPORT_W, HUD_H, 0x1a1410);
+      const border = s.add.rectangle(VIEWPORT_W / 2, HUD_H - 1, VIEWPORT_W, 2, 0x4a2c1a);
+      const y = HUD_H / 2;
+
+      // Lv block (top left)
+      const lvLabel = s.add.text(14, y, 'LV', { fontFamily: '"Press Start 2P"', fontSize: '10px', color: '#ffd966' }).setOrigin(0, 0.5);
+      hudLevelText  = s.add.text(42, y, '', { fontFamily: 'VT323', fontSize: '22px', color: '#ffd966' }).setOrigin(0, 0.5);
+
+      const hpLabel = s.add.text(78, y, 'HP', { fontFamily: '"Press Start 2P"', fontSize: '10px', color: '#e87da9' }).setOrigin(0, 0.5);
+      const hpBg    = s.add.rectangle(110, y, 80, 12, 0x2a0e0a).setOrigin(0, 0.5).setStrokeStyle(1, 0x8b6f47);
+      hpBarFill     = s.add.rectangle(110, y, 80, 12, 0xc23b22).setOrigin(0, 0.5);
+      hpText        = s.add.text(199, y, '', { fontFamily: 'VT323', fontSize: '18px', color: '#ffffff' }).setOrigin(0, 0.5);
+
+      const mpLabel = s.add.text(290, y, 'MP', { fontFamily: '"Press Start 2P"', fontSize: '10px', color: '#4a90e2' }).setOrigin(0, 0.5);
+      const mpBg    = s.add.rectangle(322, y, 80, 12, 0x0a1a2a).setOrigin(0, 0.5).setStrokeStyle(1, 0x8b6f47);
+      mpBarFill     = s.add.rectangle(322, y, 80, 12, 0x4a90e2).setOrigin(0, 0.5);
+      mpText        = s.add.text(411, y, '', { fontFamily: 'VT323', fontSize: '18px', color: '#ffffff' }).setOrigin(0, 0.5);
+
+      const gratLabel    = s.add.text(548, y, 'GRATITUDE\nLEVEL', { fontFamily: '"Press Start 2P"', fontSize: '8px', color: '#8b6f47', lineSpacing: 4, align: 'right' }).setOrigin(1, 0.5);
+      const heart        = s.add.text(558, y, '\u2665', { fontFamily: 'VT323', fontSize: '24px', color: '#ff6b9d' }).setOrigin(0, 0.5);
+      gratitudeText      = s.add.text(582, y, '', { fontFamily: 'VT323', fontSize: '22px', color: '#ffd966' }).setOrigin(0, 0.5);
+
+      // Lock all HUD elements to screen (don't scroll with camera)
+      [bg, border, lvLabel, hudLevelText, hpLabel, hpBg, hpBarFill, hpText, mpLabel, mpBg, mpBarFill, mpText, heart, gratitudeText, gratLabel]
+        .forEach(e => e.setScrollFactor(0).setDepth(100));
+    }
+
+    function updateHud() {
+      hudLevelText.setText(String(level));
+      hpBarFill.width = Math.max(0, 80 * (playerStats.hp / playerStats.maxHp));
+      hpText.setText(playerStats.hp + '/' + playerStats.maxHp);
+      mpBarFill.width = Math.max(0, 80 * (playerStats.mp / playerStats.maxMp));
+      mpText.setText(playerStats.mp + '/' + playerStats.maxMp);
+      gratitudeText.setText(String(playerStats.gratitude));
+    }
+
+    function updateLocationLabel() {
+      if (!locationText) return;
+      const labels = {
+        house: 'HOME',
+        town: 'OUTSIDE',
+        salesforce_office: 'SALESFORCE OFFICE',
+        anthropic_office: 'ANTHROPIC TOKYO',
+      };
+      locationText.setText(labels[currentMapId] || currentMapId.toUpperCase());
+    }
+
+    // ============================================================
+    //  MAP + NPCs (rebuilt on every transition)
+    // ============================================================
+    function createMap() {
+      const m = maps[currentMapId];
+      for (let y = 0; y < m.layout.length; y++) {
+        for (let x = 0; x < m.layout[y].length; x++) {
+          const def = m.tileDefs[m.layout[y][x]];
+          const p = tileToPixel(x, y);
+          const rect = sceneRef.add.rectangle(p.x, p.y, TILE_SIZE - 1, TILE_SIZE - 1, def.color);
+          activeTileObjects.push(rect);
+        }
+      }
+    }
+
+    function visibleNpcs() {
+      const m = maps[currentMapId];
+      return m.npcs.filter(npc => {
+        if (npc.isBoss && defeatedBosses.has(npc.bossId)) return false;
+        if (npc.requiresStage && storyStage < npc.requiresStage) return false;
+        return true;
+      });
+    }
+
+    function createNpcs() {
+      for (const npc of visibleNpcs()) {
+        const p = tileToPixel(npc.gridX, npc.gridY);
+        const rect = sceneRef.add.rectangle(p.x, p.y, TILE_SIZE - 6, TILE_SIZE - 6, npc.color);
+        const letter = sceneRef.add.text(p.x, p.y, npc.letter, {
+          fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#1a1410'
+        }).setOrigin(0.5);
+        const tag = sceneRef.add.text(p.x, p.y + TILE_SIZE / 2 + 8, npc.name, {
+          fontFamily: 'VT323', fontSize: '13px', color: '#1a1410',
+          stroke: '#ffffff', strokeThickness: 2
+        }).setOrigin(0.5);
+        activeNpcObjects.push(rect, letter, tag);
+      }
+    }
+
+    function createPlayer() {
+      const p = tileToPixel(playerGridX, playerGridY);
+      player = sceneRef.add.rectangle(p.x, p.y, TILE_SIZE - 6, TILE_SIZE - 6, 0x4a90e2);
+      playerLabel = sceneRef.add.text(p.x, p.y, 'J', {
+        fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#ffffff'
+      }).setOrigin(0.5);
+      playerEye = sceneRef.add.rectangle(p.x, p.y + 9, 8, 4, 0xffffff);
+      player.setDepth(10); playerLabel.setDepth(11); playerEye.setDepth(12);
+    }
+
+    // ============================================================
+    //  BOTTOM UI (dialogue + hint + location pill)
+    // ============================================================
+    function createBottomUi() {
+      const s = sceneRef;
+      const yTop = HUD_H + VIEWPORT_MAP_H;
+      const bg     = s.add.rectangle(VIEWPORT_W / 2, yTop + UI_H / 2, VIEWPORT_W, UI_H, 0x1a1410);
+      const border = s.add.rectangle(VIEWPORT_W / 2, yTop + 1, VIEWPORT_W, 2, 0x4a2c1a);
+
+      const cy = yTop + UI_H / 2;
+      dialogueBox = s.add.rectangle(VIEWPORT_W / 2, cy, VIEWPORT_W - 24, UI_H - 12, 0x2a1f17)
+        .setStrokeStyle(3, 0xd4a574).setVisible(false);
+      dialogueSpeaker = s.add.text(24, yTop + 14, '', { fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#ffd966' }).setVisible(false);
+      dialogueText    = s.add.text(24, yTop + 36, '', { fontFamily: 'VT323', fontSize: '22px', color: '#ffffff', wordWrap: { width: VIEWPORT_W - 60 } }).setVisible(false);
+      dialogueIndicator = s.add.text(VIEWPORT_W - 32, yTop + UI_H - 24, '\u25BC', { fontFamily: 'VT323', fontSize: '18px', color: '#d4a574' }).setOrigin(1, 0.5).setVisible(false);
+      hintText        = s.add.text(24, cy - 12, '', { fontFamily: 'VT323', fontSize: '20px', color: '#8b6f47' });
+      locationText    = s.add.text(VIEWPORT_W - 14, yTop + UI_H - 14, '', { fontFamily: '"Press Start 2P"', fontSize: '9px', color: '#5c4a35' }).setOrigin(1, 1);
+
+      [bg, border, dialogueBox, dialogueSpeaker, dialogueText, dialogueIndicator, hintText, locationText]
+        .forEach(e => e.setScrollFactor(0).setDepth(100));
+    }
+
+    // ============================================================
+    //  NPC MENU UI (generic — any NPC with menuOptions)
+    // ============================================================
+    function createNpcMenuUi() {
+      const s = sceneRef;
+      const W = 320, H = 200;
+      const cx = VIEWPORT_W / 2, cy = HUD_H + VIEWPORT_MAP_H / 2;
+      const box = s.add.rectangle(cx, cy, W, H, 0x1a1410, 0.97).setStrokeStyle(3, 0xe87da9);
+      menuTitleText  = s.add.text(cx, cy - H / 2 + 20, '', { fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#e87da9' }).setOrigin(0.5);
+      menuChoiceText = s.add.text(cx - W / 2 + 28, cy - 22, '', { fontFamily: 'VT323', fontSize: '22px', color: '#ffffff', lineSpacing: 6 });
+      menuFooterText = s.add.text(cx, cy + H / 2 - 18, '', { fontFamily: 'VT323', fontSize: '15px', color: '#8b6f47' }).setOrigin(0.5);
+      menuElements = [box, menuTitleText, menuChoiceText, menuFooterText];
+      menuElements.forEach(e => e.setVisible(false).setScrollFactor(0).setDepth(200));
+    }
+
+    // ============================================================
+    //  SHOP UI
+    // ============================================================
+    function createShopUi() {
+      const s = sceneRef;
+      const W = 600, H = 480;
+      const cx = VIEWPORT_W / 2, cy = MODAL_CY;
+      const left = cx - W / 2, top = cy - H / 2;
+      const box = s.add.rectangle(cx, cy, W, H, 0x1a1410, 0.97).setStrokeStyle(3, 0xd4a574);
+      const title = s.add.text(left + 20, top + 18, "WIFE'S SHOP", {
+        fontFamily: '"Press Start 2P"', fontSize: '12px', color: '#ffd966'
+      }).setOrigin(0, 0.5);
+      shopGratitudeText = s.add.text(left + W - 20, top + 18, '', {
+        fontFamily: 'VT323', fontSize: '20px', color: '#ff6b9d'
+      }).setOrigin(1, 0.5);
+
+      // Per-item: 2 text rows. Top: number + name (tier-colored) + type pill + price.
+      // Bottom: description (smaller, wraps).
+      shopItemRows = [];
+      const rowStart = top + 46;
+      const rowGap = 46;
+      for (let i = 0; i < shopOrder.length; i++) {
+        const yName = rowStart + i * rowGap;
+        const yDesc = yName + 20;
+        const nameRow = s.add.text(left + 24, yName, '', {
+          fontFamily: 'VT323', fontSize: '18px', color: '#ffffff'
+        });
+        const typeRow = s.add.text(0, yName + 3, '', {
+          fontFamily: '"Press Start 2P"', fontSize: '8px', color: '#8b6f47'
+        });
+        const priceRow = s.add.text(left + W - 24, yName, '', {
+          fontFamily: 'VT323', fontSize: '18px', color: '#ff6b9d'
+        }).setOrigin(1, 0);
+        const descRow = s.add.text(left + 48, yDesc, '', {
+          fontFamily: 'VT323', fontSize: '13px', color: '#a8a89a',
+          wordWrap: { width: W - 72 },
+        });
+        shopItemRows.push({ name: nameRow, type: typeRow, price: priceRow, desc: descRow });
+      }
+
+      shopStatusText = s.add.text(cx, top + H - 40, '', {
+        fontFamily: 'VT323', fontSize: '16px', color: '#ffffff'
+      }).setOrigin(0.5);
+
+      const footer = s.add.text(cx, top + H - 16, 'Press 1-' + shopOrder.length + ' to buy   \u00b7   B or Esc to leave', {
+        fontFamily: 'VT323', fontSize: '15px', color: '#8b6f47'
+      }).setOrigin(0.5);
+
+      const allShopTexts = [];
+      shopItemRows.forEach(r => { allShopTexts.push(r.name, r.type, r.price, r.desc); });
+      shopElements = [box, title, shopGratitudeText, shopStatusText, footer, ...allShopTexts];
+      shopElements.forEach(e => e.setVisible(false).setScrollFactor(0).setDepth(200));
+    }
+
+    function refreshShopUi() {
+      shopGratitudeText.setText('\u2665 ' + playerStats.gratitude);
+      shopOrder.forEach((id, i) => {
+        const it = items[id];
+        const desc = describeItem(it);
+        const canAfford = playerStats.gratitude >= it.price;
+        const tierColor = canAfford ? TIER_COLORS[it.tier] : '#5c4a35';
+        const dimColor = canAfford ? '#8b6f47' : '#5c4a35';
+
+        const row = shopItemRows[i];
+        const nameLine = (i + 1) + '. ' + it.name;
+        row.name.setText(nameLine);
+        row.name.setColor(tierColor);
+
+        // Position type pill just after the name text, with a small gap
+        row.type.setText('[' + (TYPE_LABELS[it.type] || '') + ']');
+        row.type.setColor(dimColor);
+        row.type.setX(row.name.x + row.name.width + 8);
+
+        row.price.setText('\u2665 ' + it.price);
+        row.price.setColor(canAfford ? '#ff6b9d' : '#5c4a35');
+
+        row.desc.setText(desc);
+        row.desc.setColor(canAfford ? '#a8a89a' : '#5c4a35');
+      });
+    }
+
+    function setShopStatus(message, color) {
+      shopStatusText.setText(message);
+      shopStatusText.setColor(color || '#ffffff');
+      if (shopStatusTimer) shopStatusTimer.remove();
+      shopStatusTimer = sceneRef.time.delayedCall(1800, () => {
+        shopStatusText.setText('');
+        shopStatusTimer = null;
+      });
+    }
+
+    // ============================================================
+    //  INVENTORY HELPERS
+    // ============================================================
+    function ownedItemList() {
+      return shopOrder.filter(id => inventory[id] > 0).map(id => ({ id, qty: inventory[id] }));
+    }
+
+    function learnedSkills() {
+      // Skills from equipped legendary items
+      const learned = [];
+      for (const slot of Object.keys(equipment)) {
+        const id = equipment[slot];
+        if (id && items[id] && items[id].grantsSkills) {
+          for (const skillId of items[id].grantsSkills) {
+            if (!learned.includes(skillId)) learned.push(skillId);
+          }
+        }
+      }
+      return learned;
+    }
+
+    function discardItem(id) {
+      if (!inventory[id]) return;
+      inventory[id]--;
+      if (inventory[id] <= 0) delete inventory[id];
+    }
+
+    // ============================================================
+    //  CHARACTER SCREEN UI — Tabbed (Character / Inventory / Magic)
+    // ============================================================
+    const CHAR_W = 580, CHAR_H = 480;
+
+    function createCharacterUi() {
+      const s = sceneRef;
+      const cx = VIEWPORT_W / 2, cy = MODAL_CY;
+      const left = cx - CHAR_W / 2, top = cy - CHAR_H / 2;
+
+      const box = s.add.rectangle(cx, cy, CHAR_W, CHAR_H, 0x1a1410, 0.97).setStrokeStyle(3, 0xd4a574);
+
+      // Tab bar
+      const tabY = top + 32;
+      charTabTexts.character = s.add.text(left + 40, tabY, 'CHARACTER', {
+        fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#ffffff',
+      }).setOrigin(0, 0.5);
+      charTabTexts.inventory = s.add.text(left + 220, tabY, 'INVENTORY', {
+        fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#5c4a35',
+      }).setOrigin(0, 0.5);
+      charTabTexts.magic = s.add.text(left + 410, tabY, 'MAGIC', {
+        fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#5c4a35',
+      }).setOrigin(0, 0.5);
+
+      // Tab underline (animated)
+      charTabTexts.underline = s.add.rectangle(left + 40, tabY + 16, 130, 2, 0xffd966).setOrigin(0, 0.5);
+
+      // Separator line under tabs
+      const sep = s.add.rectangle(cx, tabY + 22, CHAR_W - 24, 1, 0x4a2c1a);
+
+      // Footer (updated per tab)
+      charTabTexts.footer = s.add.text(cx, top + CHAR_H - 22, '', {
+        fontFamily: 'VT323', fontSize: '16px', color: '#8b6f47'
+      }).setOrigin(0.5);
+
+      // Body container — dynamic children rebuilt on tab switch
+      charBodyContainer = s.add.container(0, 0);
+
+      charElements = [box, charTabTexts.character, charTabTexts.inventory, charTabTexts.magic,
+                      charTabTexts.underline, sep, charTabTexts.footer, charBodyContainer];
+      charElements.forEach(e => { e.setVisible(false); e.setScrollFactor(0); e.setDepth(200); });
+    }
+
+    function clearCharBody() {
+      charBodyChildren.forEach(c => c.destroy());
+      charBodyChildren = [];
+    }
+
+    function showCharacter(initialTab) {
+      gameMode = 'character';
+      hintText.setText('');
+      characterTab = initialTab || 'character';
+      inventorySelectedItem = null;
+      charElements.forEach(e => e.setVisible(true));
+      refreshCharacterUi();
+    }
+
+    function refreshCharacterUi() {
+      // Highlight active tab
+      const setActive = (name) => charTabTexts[name].setColor(characterTab === name ? '#ffffff' : '#5c4a35');
+      setActive('character'); setActive('inventory'); setActive('magic');
+      // Move underline
+      const underlinePositions = { character: 40, inventory: 220, magic: 410 };
+      const underlineWidths    = { character: 130, inventory: 130, magic:  76 };
+      const cx = VIEWPORT_W / 2, left = cx - CHAR_W / 2;
+      charTabTexts.underline.x = left + underlinePositions[characterTab];
+      charTabTexts.underline.width = underlineWidths[characterTab];
+
+      clearCharBody();
+      if (characterTab === 'character')      renderCharacterTab();
+      else if (characterTab === 'inventory') renderInventoryTab();
+      else if (characterTab === 'magic')     renderMagicTab();
+    }
+
+    // ---------- TAB: CHARACTER ----------
+    function renderCharacterTab() {
+      const s = sceneRef;
+      const cx = VIEWPORT_W / 2, cy = MODAL_CY;
+      const left = cx - CHAR_W / 2, top = cy - CHAR_H / 2;
+      const bodyTop = top + 76;
+
+      // Header — name + level
+      const nameRow = s.add.text(left + 28, bodyTop, 'Jay Kim', {
+        fontFamily: 'VT323', fontSize: '26px', color: '#ffffff'
+      }).setScrollFactor(0).setDepth(201);
+      const levelRow = s.add.text(left + CHAR_W - 28, bodyTop, 'Lv. ' + level, {
+        fontFamily: '"Press Start 2P"', fontSize: '22px', color: '#ffd966'
+      }).setOrigin(1, 0).setScrollFactor(0).setDepth(201);
+      const subRow = s.add.text(left + 28, bodyTop + 30, 'Recruiter \u00b7 Tokyo', {
+        fontFamily: 'VT323', fontSize: '20px', color: '#a8a89a'
+      }).setScrollFactor(0).setDepth(201);
+      const stageLabel = STAGE_LABELS[storyStage] || 'Unknown';
+      const stageRow = s.add.text(left + 28, bodyTop + 60, 'Stage ' + storyStage + ': ' + stageLabel, {
+        fontFamily: 'VT323', fontSize: '22px', color: '#e8b87d'
+      }).setScrollFactor(0).setDepth(201);
+
+      // XP bar
+      const barY = bodyTop + 108;
+      const xpLabel = s.add.text(left + 28, barY, 'XP', {
+        fontFamily: '"Press Start 2P"', fontSize: '10px', color: '#8b6f47'
+      }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(201);
+      const barX = left + 70, barW = 280;
+      const xpBarBg = s.add.rectangle(barX, barY, barW, 14, 0x2a1f17).setOrigin(0, 0.5).setStrokeStyle(1, 0x8b6f47).setScrollFactor(0).setDepth(201);
+
+      const atMax = level >= MAX_LEVEL;
+      const xpIntoLevel = atMax ? XP_PER_LEVEL : (xp - level * XP_PER_LEVEL);
+      const denom = XP_PER_LEVEL;
+      const pct = atMax ? 1 : xpIntoLevel / denom;
+      const fill = s.add.rectangle(barX, barY, barW * pct, 14, 0xffd966).setOrigin(0, 0.5).setScrollFactor(0).setDepth(201);
+      const xpText = s.add.text(barX + barW + 14, barY, atMax ? 'MAX' : (xpIntoLevel + ' / ' + denom), {
+        fontFamily: 'VT323', fontSize: '20px', color: '#ffffff'
+      }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(201);
+
+      // Next milestone hint
+      let nextHint;
+      if (atMax)                         nextHint = 'Maxed out. Welcome to Anthropic.';
+      else if (level < STAGE_1_LEVEL)    nextHint = 'Reach Lv ' + STAGE_1_LEVEL + ' to challenge Anthropic interviewers';
+      else if (level < STAGE_2_LEVEL)    nextHint = 'Defeat all Anthropic interviewers to unlock Lv ' + STAGE_2_LEVEL;
+      else                                nextHint = '';
+      const hintRow = s.add.text(left + 28, barY + 22, nextHint, {
+        fontFamily: 'VT323', fontSize: '16px', color: '#5c4a35'
+      }).setScrollFactor(0).setDepth(201);
+
+      // Stats — two columns: vitals left (HP/MP/Gratitude), combat right (ATK/DEF)
+      const fmt = (cur, max) => String(cur).padStart(3) + ' / ' + String(max).padStart(3);
+      const atk = calcAttackRange();
+      const atkStr = atk.min + '\u2013' + atk.max;
+      const def = getDefense();
+      const vitals =
+        'HP    ' + fmt(playerStats.hp, playerStats.maxHp) + '\n' +
+        'MP    ' + fmt(playerStats.mp, playerStats.maxMp) + '\n' +
+        '\u2665     ' + playerStats.gratitude;
+      const combat =
+        'ATK   ' + atkStr.padStart(7) + '\n' +
+        'DEF   ' + String(def).padStart(7);
+      const vitalsText = s.add.text(left + 28, bodyTop + 168, vitals, {
+        fontFamily: 'VT323', fontSize: '20px', color: '#ffffff', lineSpacing: 6,
+      }).setScrollFactor(0).setDepth(201);
+      const combatText = s.add.text(left + 300, bodyTop + 168, combat, {
+        fontFamily: 'VT323', fontSize: '20px', color: '#ffffff', lineSpacing: 6,
+      }).setScrollFactor(0).setDepth(201);
+
+      // Equipment — shifted up since stats are shorter now
+      const eqHeader = s.add.text(left + 28, bodyTop + 260, 'EQUIPMENT', {
+        fontFamily: '"Press Start 2P"', fontSize: '10px', color: '#e8b87d'
+      }).setScrollFactor(0).setDepth(201);
+
+      const slots = [
+        { key: 'outfit',     label: '1. Outfit       ' },
+        { key: 'accessory1', label: '2. Accessory 1  ' },
+        { key: 'accessory2', label: '3. Accessory 2  ' },
+      ];
+      const eqName = id => id ? items[id].name : '(empty)';
+      const equipChildren = [];
+      slots.forEach((s2, i) => {
+        const id = equipment[s2.key];
+        const it = id ? items[id] : null;
+        const color = it ? TIER_COLORS[it.tier] : '#5c4a35';
+        const row = s.add.text(left + 28, bodyTop + 286 + i * 26, s2.label + eqName(id), {
+          fontFamily: 'VT323', fontSize: '20px', color: color,
+        }).setScrollFactor(0).setDepth(201);
+        equipChildren.push(row);
+      });
+
+      charBodyChildren.push(nameRow, levelRow, subRow, stageRow, xpLabel, xpBarBg, fill, xpText, hintRow, vitalsText, combatText, eqHeader, ...equipChildren);
+      charTabTexts.footer.setText('1-3 unequip   \u00b7   \u2190\u2192 tabs   \u00b7   C/Esc close');
+    }
+
+    // ---------- TAB: INVENTORY ----------
+    function renderInventoryTab() {
+      const s = sceneRef;
+      const cx = VIEWPORT_W / 2, cy = MODAL_CY;
+      const left = cx - CHAR_W / 2, top = cy - CHAR_H / 2;
+      const bodyTop = top + 76;
+
+      const owned = ownedItemList();
+
+      if (inventorySelectedItem) {
+        // ACTION SUBMENU
+        const it = items[inventorySelectedItem];
+        const titleColor = TIER_COLORS[it.tier];
+        const heading = s.add.text(left + 28, bodyTop, it.name, {
+          fontFamily: '"Press Start 2P"', fontSize: '13px', color: titleColor,
+        }).setScrollFactor(0).setDepth(201);
+        const typePill = s.add.text(left + 28 + heading.width + 12, bodyTop + 4, '[' + (TYPE_LABELS[it.type] || '') + ']', {
+          fontFamily: '"Press Start 2P"', fontSize: '9px', color: '#8b6f47',
+        }).setScrollFactor(0).setDepth(201);
+        const desc = it.effect === 'hp'        ? 'Restores +' + it.amount + ' HP when used'
+                   : it.effect === 'mp'        ? 'Restores +' + it.amount + ' MP when used'
+                   : it.effect === 'equipment' ? describeItem(it)
+                                               : '';
+        const descText = s.add.text(left + 28, bodyTop + 32, desc, {
+          fontFamily: 'VT323', fontSize: '20px', color: '#a8a89a', wordWrap: { width: CHAR_W - 60 }
+        }).setScrollFactor(0).setDepth(201);
+
+        // Action list
+        const actions = [];
+        if (it.effect === 'hp' || it.effect === 'mp') actions.push({ label: 'Use', key: 'use' });
+        if (it.effect === 'equipment')                actions.push({ label: 'Equip', key: 'equip' });
+        actions.push({ label: 'Discard', key: 'discard' });
+        actions.push({ label: 'Back', key: 'back' });
+
+        const actionRows = [];
+        actions.forEach((a, i) => {
+          const row = s.add.text(left + 28, bodyTop + 90 + i * 32, (i + 1) + '. ' + a.label, {
+            fontFamily: 'VT323', fontSize: '22px', color: '#ffffff'
+          }).setScrollFactor(0).setDepth(201);
+          actionRows.push(row);
+        });
+
+        charBodyChildren.push(heading, typePill, descText, ...actionRows);
+        charTabTexts.footer.setText('1-' + actions.length + ' choose action   ·   B back to inventory');
+        return;
+      }
+
+      // LIST VIEW
+      // (Gratitude balance is already shown in the top HUD — no need to duplicate it here.)
+      if (owned.length === 0) {
+        const empty = s.add.text(left + 28, bodyTop + 40,
+          'No items yet.\n\nVisit Wife to shop.', {
+          fontFamily: 'VT323', fontSize: '22px', color: '#8b6f47', lineSpacing: 6,
+        }).setScrollFactor(0).setDepth(201);
+        charBodyChildren.push(empty);
+        charTabTexts.footer.setText('\u2190\u2192 tabs   ·   C/Esc close');
+        return;
+      }
+
+      // Show up to 8 items
+      const slice = owned.slice(0, 8);
+      slice.forEach(({ id, qty }, i) => {
+        const it = items[id];
+        const tierColor = TIER_COLORS[it.tier];
+        const typeLabel = TYPE_LABELS[it.type] || '';
+        const name = it.name + (qty > 1 ? ' x' + qty : '');
+
+        const numText = s.add.text(left + 28, bodyTop + 16 + i * 26, (i + 1) + '.', {
+          fontFamily: 'VT323', fontSize: '20px', color: '#ffffff'
+        }).setScrollFactor(0).setDepth(201);
+        const nameText = s.add.text(left + 56, bodyTop + 16 + i * 26, name, {
+          fontFamily: 'VT323', fontSize: '20px', color: tierColor
+        }).setScrollFactor(0).setDepth(201);
+        const typeText = s.add.text(left + CHAR_W - 28, bodyTop + 16 + i * 26, '[' + typeLabel + ']', {
+          fontFamily: '"Press Start 2P"', fontSize: '8px', color: '#8b6f47'
+        }).setOrigin(1, 0).setScrollFactor(0).setDepth(201);
+
+        charBodyChildren.push(numText, nameText, typeText);
+      });
+
+      // Tier legend at bottom of body — pushed down to fit 8 rows
+      const legendY = bodyTop + 240;
+      const legendLabel = s.add.text(left + 28, legendY, 'Tier:', {
+        fontFamily: 'VT323', fontSize: '16px', color: '#5c4a35'
+      }).setScrollFactor(0).setDepth(201);
+      const tierNames = [
+        { name: 'common',    color: TIER_COLORS.common },
+        { name: 'magic',     color: TIER_COLORS.magic },
+        { name: 'rare',      color: TIER_COLORS.rare },
+        { name: 'legendary', color: TIER_COLORS.legendary },
+      ];
+      const legendRows = [];
+      let x = left + 80;
+      tierNames.forEach(t => {
+        const r = s.add.text(x, legendY, t.name, {
+          fontFamily: 'VT323', fontSize: '16px', color: t.color,
+        }).setScrollFactor(0).setDepth(201);
+        legendRows.push(r);
+        x += t.name.length * 9 + 12;
+      });
+
+      charBodyChildren.push(legendLabel, ...legendRows);
+      charTabTexts.footer.setText('1-' + slice.length + ' select item   ·   \u2190\u2192 tabs   ·   I/Esc close');
+    }
+
+    // ---------- TAB: MAGIC ----------
+    function renderMagicTab() {
+      const s = sceneRef;
+      const cx = VIEWPORT_W / 2, cy = MODAL_CY;
+      const left = cx - CHAR_W / 2, top = cy - CHAR_H / 2;
+      const bodyTop = top + 76;
+
+      const learned = learnedSkills();
+
+      if (learned.length === 0) {
+        const empty = s.add.text(left + 28, bodyTop + 8,
+          'No magic skills learned yet.\n\n' +
+          'Equip legendary items to unlock\n' +
+          'recruiting magic. Defeat bosses\n' +
+          'to grow more powerful.', {
+          fontFamily: 'VT323', fontSize: '22px', color: '#8b6f47', lineSpacing: 6,
+        }).setScrollFactor(0).setDepth(201);
+        charBodyChildren.push(empty);
+      } else {
+        const header = s.add.text(left + 28, bodyTop, 'KNOWN SKILLS', {
+          fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#c084fc'
+        }).setScrollFactor(0).setDepth(201);
+        charBodyChildren.push(header);
+
+        learned.forEach((skillId, i) => {
+          const sk = skills[skillId];
+          if (!sk) return;
+          const color = TIER_COLORS[sk.tier];
+          const effectiveDmg = sk.damage + level * 2;
+          const nameRow = s.add.text(left + 28, bodyTop + 36 + i * 80, sk.name, {
+            fontFamily: 'VT323', fontSize: '24px', color: color
+          }).setScrollFactor(0).setDepth(201);
+          const mpRow = s.add.text(left + CHAR_W - 28, bodyTop + 36 + i * 80, sk.mpCost + ' MP \u00b7 ' + effectiveDmg + ' dmg', {
+            fontFamily: 'VT323', fontSize: '18px', color: '#4a90e2'
+          }).setOrigin(1, 0).setScrollFactor(0).setDepth(201);
+          const descRow = s.add.text(left + 28, bodyTop + 62 + i * 80, sk.desc, {
+            fontFamily: 'VT323', fontSize: '18px', color: '#a8a89a', wordWrap: { width: CHAR_W - 60 }
+          }).setScrollFactor(0).setDepth(201);
+          charBodyChildren.push(nameRow, mpRow, descRow);
+        });
+      }
+
+      charTabTexts.footer.setText('\u2190\u2192 tabs   ·   C/Esc close');
+    }
+
+    // ============================================================
+    //  EQUIPMENT LOGIC
+    // ============================================================
+    function recalculateStats() {
+      const b = getEquipmentBonuses();
+      playerStats.maxHp = BASE_MAX_HP + level * HP_PER_LEVEL + b.hp;
+      playerStats.maxMp = BASE_MAX_MP + level * MP_PER_LEVEL + b.mp;
+      playerStats.hp = Math.min(playerStats.hp, playerStats.maxHp);
+      playerStats.mp = Math.min(playerStats.mp, playerStats.maxMp);
+    }
+
+    function equipItem(id) {
+      const item = items[id];
+      if (!item || item.effect !== 'equipment') return;
+      let target;
+      if (item.slot === 'accessory') {
+        if (!equipment.accessory1)      target = 'accessory1';
+        else if (!equipment.accessory2) target = 'accessory2';
+        else                            target = 'accessory1';
+      } else if (item.slot === 'outfit') {
+        target = 'outfit';
+      } else {
+        return;
+      }
+      const replaced = equipment[target];
+      if (replaced) inventory[replaced] = (inventory[replaced] || 0) + 1;
+      equipment[target] = id;
+      inventory[id]--;
+      if (inventory[id] <= 0) delete inventory[id];
+      recalculateStats();
+      updateHud();
+    }
+
+    function unequipSlot(slotName) {
+      const id = equipment[slotName];
+      if (!id) return false;
+      equipment[slotName] = null;
+      inventory[id] = (inventory[id] || 0) + 1;
+      recalculateStats();
+      updateHud();
+      return true;
+    }
+
+    // ============================================================
+    //  CHARACTER SCREEN INPUT
+    // ============================================================
+    function handleCharacterChoice(n) {
+      if (characterTab === 'character') {
+        const slots = ['outfit', 'accessory1', 'accessory2'];
+        if (n < 1 || n > 3) return;
+        unequipSlot(slots[n - 1]);
+        refreshCharacterUi();
+      } else if (characterTab === 'inventory') {
+        if (inventorySelectedItem) {
+          handleInventoryAction(n);
+        } else {
+          const owned = ownedItemList().slice(0, 8);
+          if (n < 1 || n > owned.length) return;
+          inventorySelectedItem = owned[n - 1].id;
+          refreshCharacterUi();
+        }
+      }
+      // magic tab: nothing on number keys yet (Phase 5 wires combat)
+    }
+
+    function handleInventoryAction(n) {
+      const it = items[inventorySelectedItem];
+      const actions = [];
+      if (it.effect === 'hp' || it.effect === 'mp') actions.push('use');
+      if (it.effect === 'equipment')                actions.push('equip');
+      actions.push('discard');
+      actions.push('back');
+
+      if (n < 1 || n > actions.length) return;
+      const action = actions[n - 1];
+
+      if (action === 'use') {
+        if (it.effect === 'hp') {
+          if (playerStats.hp >= playerStats.maxHp) { inventorySelectedItem = null; refreshCharacterUi(); return; }
+          const gain = Math.min(it.amount, playerStats.maxHp - playerStats.hp);
+          playerStats.hp += gain;
+        } else if (it.effect === 'mp') {
+          if (playerStats.mp >= playerStats.maxMp) { inventorySelectedItem = null; refreshCharacterUi(); return; }
+          const gain = Math.min(it.amount, playerStats.maxMp - playerStats.mp);
+          playerStats.mp += gain;
+        }
+        discardItem(inventorySelectedItem);
+        updateHud();
+      } else if (action === 'equip') {
+        equipItem(inventorySelectedItem);
+      } else if (action === 'discard') {
+        discardItem(inventorySelectedItem);
+      }
+      inventorySelectedItem = null;
+      refreshCharacterUi();
+    }
+
+    function switchCharacterTab(direction) {
+      const order = ['character', 'inventory', 'magic'];
+      const idx = order.indexOf(characterTab);
+      const next = (idx + direction + order.length) % order.length;
+      characterTab = order[next];
+      inventorySelectedItem = null;
+      refreshCharacterUi();
+    }
+
+    // ============================================================
+    //  PAUSE / SAVE MENU
+    // ============================================================
+    function createPauseUi() {
+      const s = sceneRef;
+      const W = 380, H = 280;
+      const cx = VIEWPORT_W / 2, cy = HUD_H + VIEWPORT_MAP_H / 2;
+      const dim = s.add.rectangle(VIEWPORT_W / 2, TOTAL_H / 2, VIEWPORT_W, TOTAL_H, 0x000000, 0.55);
+      const box = s.add.rectangle(cx, cy, W, H, 0x1a1410, 0.97).setStrokeStyle(3, 0xffd966);
+      const title = s.add.text(cx, cy - H / 2 + 24, 'PAUSED', {
+        fontFamily: '"Press Start 2P"', fontSize: '14px', color: '#ffd966',
+      }).setOrigin(0.5);
+      const options = s.add.text(cx, cy - 4,
+        '1. Resume\n2. Save Game\n3. Return to Title',
+        { fontFamily: 'VT323', fontSize: '24px', color: '#ffffff', align: 'center', lineSpacing: 8 }
+      ).setOrigin(0.5);
+      const footer = s.add.text(cx, cy + H / 2 - 22, 'Press 1-3   ·   Esc to resume', {
+        fontFamily: 'VT323', fontSize: '16px', color: '#8b6f47',
+      }).setOrigin(0.5);
+      pauseElements = [dim, box, title, options, footer];
+      pauseElements.forEach(e => e.setVisible(false).setScrollFactor(0).setDepth(250));
+    }
+
+    function showPause() {
+      gameMode = 'pause';
+      hintText.setText('');
+      pauseElements.forEach(e => e.setVisible(true));
+    }
+
+    function hidePause() {
+      pauseElements.forEach(e => e.setVisible(false));
+      gameMode = 'overworld';
+      updateHint();
+    }
+
+    function handlePauseChoice(n) {
+      if (n === 1) {
+        hidePause();
+      } else if (n === 2) {
+        const ok = saveGame();
+        flashSavedBanner(ok ? 'Game saved' : 'Save failed');
+      } else if (n === 3) {
+        returnToTitle();
+      }
+    }
+
+    function returnToTitle() {
+      // Wipe modal state, fade out, stop this scene, start menu fresh
+      pauseElements.forEach(e => e.setVisible(false));
+      sceneRef.cameras.main.fadeOut(220, 26, 20, 16);
+      sceneRef.time.delayedCall(240, () => {
+        sceneRef.scene.start('menu');
+      });
+    }
+
+    // ============================================================
+    //  ENDING CREDITS SEQUENCE
+    // ============================================================
+    // Triggered by interacting with the Boarding Gate in the airport map.
+    // Fades each line in/out, then transitions back to the title screen.
+    function runCreditsSequence() {
+      gameMode = 'dialogue';      // blocks overworld input during credits
+      isTransitioning = true;     // also blocks movement/exits
+
+      const lines = [
+        'Tokyo Narita International Airport.',
+        'Terminal 1. Gate 47.',
+        '',
+        'Now boarding: Direct flight to San Francisco.',
+        '',
+        'Jay sits at the gate.',
+        'The world is loud and quiet at once.',
+        '',
+        'He thinks about Wife.',
+        'About Mion. About Fu Chan.',
+        'About Takeda, who said go.',
+        'About Shiori, who said come back.',
+        '',
+        'About every Salesforce loop that built him.',
+        'About every Anthropic round that tested him.',
+        '',
+        'Phone buzzes. Wife:',
+        '"You forgot your charger.',
+        'Buy a new one there."',
+        '',
+        'Jay smiles.',
+        '',
+        '─── CREDITS ───',
+        '',
+        'Recruiter Jay Kim\'s Quest',
+        'A love letter to a real career transition.',
+        '',
+        'Designed & written by Jay Kim',
+        'Built with Phaser 3',
+        'Co-developed with Claude',
+        '',
+        'Special thanks:',
+        'Every recruiter who told the truth.',
+        'Every hiring manager who listened.',
+        'Every candidate who said yes.',
+        '',
+        'Welcome to Anthropic, Jay.',
+        'May 2026.',
+        '',
+        '─── FIN ───',
+      ];
+
+      // Black overlay covering the viewport
+      const overlay = sceneRef.add.rectangle(
+        VIEWPORT_W / 2, TOTAL_H / 2, VIEWPORT_W, TOTAL_H, 0x000000, 1
+      ).setScrollFactor(0).setDepth(500).setAlpha(0);
+
+      // Credits text — appears in center of viewport
+      const txt = sceneRef.add.text(
+        VIEWPORT_W / 2, TOTAL_H / 2, '', {
+          fontFamily: 'VT323', fontSize: '24px', color: '#ffffff',
+          align: 'center', wordWrap: { width: VIEWPORT_W - 80 }, lineSpacing: 6,
+        }
+      ).setOrigin(0.5).setScrollFactor(0).setDepth(501).setAlpha(0);
+
+      let idx = 0;
+
+      function fadeOutToMenu() {
+        sceneRef.tweens.add({
+          targets: [txt, overlay], alpha: 0, duration: 900,
+          onComplete: () => {
+            sceneRef.cameras.main.fadeOut(700, 0, 0, 0);
+            sceneRef.time.delayedCall(800, () => {
+              overlay.destroy(); txt.destroy();
+              sceneRef.scene.start('menu');
+            });
+          },
+        });
+      }
+
+      function showNext() {
+        if (idx >= lines.length) { fadeOutToMenu(); return; }
+        const line = lines[idx];
+        // Blank lines act as short pacing beats
+        if (line === '') {
+          idx++;
+          sceneRef.time.delayedCall(600, showNext);
+          return;
+        }
+        txt.setText(line).setAlpha(0);
+        sceneRef.tweens.add({
+          targets: txt, alpha: 1, duration: 500, ease: 'Cubic.Out',
+          onComplete: () => {
+            // Hold each line proportional to length, min 1.8s, max 3.4s
+            const hold = Math.min(3400, Math.max(1800, line.length * 60));
+            sceneRef.time.delayedCall(hold, () => {
+              sceneRef.tweens.add({
+                targets: txt, alpha: 0, duration: 450, ease: 'Cubic.In',
+                onComplete: () => { idx++; showNext(); },
+              });
+            });
+          },
+        });
+      }
+
+      // Fade in the black overlay, then start credits
+      sceneRef.tweens.add({
+        targets: overlay, alpha: 1, duration: 700, ease: 'Cubic.Out',
+        onComplete: showNext,
+      });
+    }
+
+    // ============================================================
+    //  STAGE UNLOCK BANNER
+    // ============================================================
+    function showStageUnlockBanner(stage) {
+      const label = STAGE_LABELS[stage] || ('Stage ' + stage);
+      // Stage 3 is the endgame — bigger banner, hold longer, special sub-line.
+      const isEndgame = stage === 3;
+      const headline = isEndgame
+        ? 'FINAL STAGE CLEARED'
+        : 'STAGE ' + stage + ' UNLOCKED';
+      const subLine = isEndgame
+        ? label + '\nA new door has opened\nin the south of town.'
+        : label;
+      const banner = sceneRef.add.text(
+        VIEWPORT_W / 2, HUD_H + VIEWPORT_MAP_H / 2,
+        headline + '\n' + subLine, {
+          fontFamily: '"Press Start 2P"',
+          fontSize: isEndgame ? '13px' : '14px',
+          color: isEndgame ? '#c084fc' : '#ffd966',
+          stroke: '#000', strokeThickness: 4, align: 'center', lineSpacing: 8,
+        }
+      ).setOrigin(0.5).setScrollFactor(0).setDepth(300);
+      sceneRef.tweens.add({
+        targets: banner, alpha: { from: 1, to: 0 }, scaleX: 1.15, scaleY: 1.15,
+        duration: isEndgame ? 4200 : 2400, ease: 'Cubic.Out',
+        onComplete: () => banner.destroy(),
+      });
+    }
+
+    function showLevelUpBanner(newLevel) {
+      const banner = sceneRef.add.text(
+        VIEWPORT_W / 2, HUD_H + VIEWPORT_MAP_H / 2 - 40,
+        'LEVEL UP!  \u2192  Lv ' + newLevel, {
+          fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#ffd966',
+          stroke: '#000', strokeThickness: 3, align: 'center',
+        }
+      ).setOrigin(0.5).setScrollFactor(0).setDepth(299);
+      sceneRef.tweens.add({
+        targets: banner, alpha: { from: 1, to: 0 }, y: banner.y - 30,
+        duration: 1800, ease: 'Cubic.Out',
+        onComplete: () => banner.destroy(),
+      });
+    }
+
+    // ============================================================
+    //  KEY BINDINGS
+    // ============================================================
+    function bindKeys() {
+      const kb = sceneRef.input.keyboard;
+      cursors  = kb.createCursorKeys();
+      wasdKeys = kb.addKeys('W,A,S,D');
+      spaceKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+      keyB     = kb.addKey(Phaser.Input.Keyboard.KeyCodes.B);
+      keyI     = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I);
+      keyC     = kb.addKey(Phaser.Input.Keyboard.KeyCodes.C);
+      keyEsc   = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+
+      ['ONE','TWO','THREE','FOUR','FIVE','SIX','SEVEN','EIGHT'].forEach((c, i) => {
+        numKeys[i + 1] = kb.addKey(Phaser.Input.Keyboard.KeyCodes[c]);
+        numKeys[i + 1].on('down', () => handleNumberKey(i + 1));
+      });
+
+      spaceKey.on('down', handleSpacePress);
+      keyB.on('down', handleBackKey);
+      keyI.on('down', handleInventoryKey);
+      keyC.on('down', handleCharacterKey);
+      keyEsc.on('down', handleEscKey);
+
+      // Arrow keys: tab switching when character screen is open
+      cursors.left.on('down', () => {
+        if (gameMode === 'character' && !isTransitioning) {
+          if (inventorySelectedItem) return; // don't switch tabs mid-submenu
+          switchCharacterTab(-1);
+        }
+      });
+      cursors.right.on('down', () => {
+        if (gameMode === 'character' && !isTransitioning) {
+          if (inventorySelectedItem) return;
+          switchCharacterTab(1);
+        }
+      });
+    }
+
+    function handleSpacePress() {
+      if (isTransitioning) return;
+      if (gameMode === 'dialogue')  return advanceDialogue();
+      if (gameMode === 'overworld' && !isMoving) return tryInteract();
+    }
+    function handleNumberKey(n) {
+      if (isTransitioning) return;
+      if (gameMode === 'pause')     return handlePauseChoice(n);
+      if (gameMode === 'npcMenu')   return handleMenuChoice(n);
+      if (gameMode === 'shop')      return handleShopBuy(n);
+      if (gameMode === 'character') return handleCharacterChoice(n);
+    }
+    function handleBackKey() {
+      if (isTransitioning) return;
+      if (gameMode === 'pause') return hidePause();
+      if (gameMode === 'character' && inventorySelectedItem) {
+        // Back out of action submenu to inventory list
+        inventorySelectedItem = null;
+        refreshCharacterUi();
+        return;
+      }
+      if (gameMode === 'shop' || gameMode === 'npcMenu' || gameMode === 'character') {
+        closeAllModals();
+        currentMenuNpc = null;
+        gameMode = 'overworld';
+        updateHint();
+      }
+    }
+    function handleInventoryKey() {
+      if (isTransitioning) return;
+      // [I] is a shortcut into Character → Inventory tab
+      if (gameMode === 'overworld' && !isMoving) showCharacter('inventory');
+      else if (gameMode === 'character') { closeAllModals(); gameMode = 'overworld'; updateHint(); }
+    }
+    function handleCharacterKey() {
+      if (isTransitioning) return;
+      if (gameMode === 'overworld' && !isMoving) showCharacter('character');
+      else if (gameMode === 'character') { closeAllModals(); gameMode = 'overworld'; updateHint(); }
+    }
+    function handleEscKey() {
+      if (isTransitioning) return;
+      if (gameMode === 'pause')     return hidePause();
+      if (gameMode === 'overworld') return showPause();
+      if (gameMode === 'shop' || gameMode === 'npcMenu' || gameMode === 'character') {
+        closeAllModals();
+        currentMenuNpc = null;
+        gameMode = 'overworld';
+        updateHint();
+      }
+    }
+
+    // ============================================================
+    //  INTERACTION
+    // ============================================================
+    function tryInteract() {
+      const front = getFrontTile();
+      const npc = visibleNpcs().find(n => n.gridX === front.x && n.gridY === front.y);
+      if (!npc) return;
+      if (npc.menuOptions && npc.menuOptions.length > 0) { showNpcMenu(npc); return; }
+      startDialogue(npc, pickConversation(npc));
+    }
+
+    function showNpcMenu(npc) {
+      gameMode = 'npcMenu';
+      currentMenuNpc = npc;
+      hintText.setText('');
+      menuTitleText.setText(npc.name.toUpperCase() + "'S MENU");
+      menuChoiceText.setText(npc.menuOptions.map((o, i) => (i + 1) + '. ' + o.label).join('\n'));
+      menuFooterText.setText('Press 1-' + npc.menuOptions.length + '   ·   B to leave');
+      menuElements.forEach(e => e.setVisible(true));
+    }
+
+    function handleMenuChoice(n) {
+      if (!currentMenuNpc) return;
+      if (n < 1 || n > currentMenuNpc.menuOptions.length) return;
+      const choice = currentMenuNpc.menuOptions[n - 1];
+      const npc = currentMenuNpc;
+      menuElements.forEach(e => e.setVisible(false));
+
+      if (choice.action === 'talk') {
+        startDialogue(npc, pickConversation(npc));
+      } else if (choice.action === 'shop') {
+        showShop();
+      } else if (choice.action === 'pat') {
+        applyPat(npc);
+        currentMenuNpc = null; gameMode = 'overworld'; updateHint();
+      } else if (choice.action === 'fight') {
+        startBattle(npc);
+      } else if (choice.action === 'enter_office') {
+        currentMenuNpc = null; gameMode = 'overworld';
+        // Find a sensible spawn in the target map.
+        const target = npc.targetMap;
+        const spawnTable = {
+          salesforce_office: { x: 7, y: 9, facing: 'up' },
+          anthropic_office:  { x: 9, y: 10, facing: 'up' },
+          airport:           { x: 7, y: 8, facing: 'up' },
+        };
+        const spawn = spawnTable[target] || { x: 9, y: 10, facing: 'up' };
+        switchMap(target, spawn.x, spawn.y, spawn.facing);
+      } else if (choice.action === 'board_flight') {
+        currentMenuNpc = null;
+        runCreditsSequence();
+      } else if (choice.action === 'leave') {
+        currentMenuNpc = null; gameMode = 'overworld'; updateHint();
+      }
+    }
+
+    function startBattle(bossNpc) {
+      saveGame();   // safety checkpoint before battle
+      isTransitioning = true;
+      sceneRef.cameras.main.fadeOut(280, 26, 20, 16);
+      sceneRef.time.delayedCall(300, () => {
+        sceneRef.scene.start('battle', { bossId: bossNpc.bossId });
+      });
+    }
+
+    function applyPat(npc) {
+      const hpGain = Math.min(10, playerStats.maxHp - playerStats.hp);
+      const mpGain = Math.min(10, playerStats.maxMp - playerStats.mp);
+      playerStats.hp += hpGain; playerStats.mp += mpGain;
+      updateHud();
+      if (hpGain === 0 && mpGain === 0) { showFloatingText(npc.gridX, npc.gridY, 'Fully refreshed', '#8b6f47'); return; }
+      if (hpGain > 0) showFloatingText(npc.gridX, npc.gridY, '+' + hpGain + ' HP', '#c23b22');
+      if (mpGain > 0) sceneRef.time.delayedCall(180, () => showFloatingText(npc.gridX, npc.gridY, '+' + mpGain + ' MP', '#4a90e2'));
+    }
+
+    // ============================================================
+    //  SHOP / INVENTORY
+    // ============================================================
+    function showShop() { gameMode = 'shop'; shopElements.forEach(e => e.setVisible(true)); refreshShopUi(); }
+
+    function handleShopBuy(n) {
+      if (n < 1 || n > shopOrder.length) return;
+      const id = shopOrder[n - 1]; const item = items[id];
+      if (playerStats.gratitude < item.price) {
+        setShopStatus('Not enough \u2665 \u2014 need ' + item.price + ', have ' + playerStats.gratitude, '#c23b22');
+        return;
+      }
+      playerStats.gratitude -= item.price;
+      inventory[id] = (inventory[id] || 0) + 1;
+      updateHud(); refreshShopUi();
+      setShopStatus('Bought ' + item.name + '! (added to inventory)', TIER_COLORS[item.tier]);
+    }
+
+    // ============================================================
+    //  DIALOGUE
+    // ============================================================
+    function startDialogue(npc, lines) {
+      gameMode = 'dialogue'; currentSpeakerNpc = npc;
+      currentLines = lines; currentLineIndex = 0;
+      dialogueBox.setVisible(true);
+      dialogueSpeaker.setVisible(true).setText(npc.name);
+      dialogueText.setVisible(true);
+      dialogueIndicator.setVisible(false);
+      hintText.setText('');
+      showLine(lines[0]);
+    }
+
+    function showLine(text) {
+      isTyping = true; fullText = text;
+      dialogueText.setText(''); dialogueIndicator.setVisible(false);
+      if (typeTimer) { typeTimer.remove(); typeTimer = null; }
+      let i = 0;
+      const myTimer = sceneRef.time.addEvent({
+        delay: 22, loop: true,
+        callback: () => {
+          if (typeTimer !== myTimer) return;
+          i++;
+          dialogueText.setText(fullText.substring(0, i));
+          if (i >= fullText.length) {
+            myTimer.remove(); typeTimer = null; isTyping = false;
+            updateIndicator();
+          }
+        },
+      });
+      typeTimer = myTimer;
+    }
+
+    function advanceDialogue() {
+      if (isTyping) {
+        if (typeTimer) { typeTimer.remove(); typeTimer = null; }
+        dialogueText.setText(fullText); isTyping = false; updateIndicator();
+        return;
+      }
+      currentLineIndex++;
+      if (currentLineIndex >= currentLines.length) return endDialogue();
+      showLine(currentLines[currentLineIndex]);
+    }
+
+    function updateIndicator() {
+      const isLast = currentLineIndex >= currentLines.length - 1;
+      dialogueIndicator.setText(isLast ? '\u25BC [End]' : '\u25BC');
+      dialogueIndicator.setVisible(true);
+    }
+
+    function endDialogue() {
+      if (currentSpeakerNpc) {
+        const reward = currentSpeakerNpc.gratitudeReward || 0;
+        if (reward > 0) {
+          playerStats.gratitude += reward;
+          showFloatingText(currentSpeakerNpc.gridX, currentSpeakerNpc.gridY, '+' + reward + ' \u2665', '#ff6b9d');
+        }
+        if (currentSpeakerNpc.name === 'Mion' && playerStats.mp < playerStats.maxMp) {
+          const gain = Math.min(10, playerStats.maxMp - playerStats.mp);
+          playerStats.mp += gain;
+          const npc = currentSpeakerNpc;
+          sceneRef.time.delayedCall(220, () => showFloatingText(npc.gridX, npc.gridY, '+' + gain + ' MP', '#4a90e2'));
+        }
+      }
+      gameMode = 'overworld';
+      currentSpeakerNpc = null; currentLines = []; currentLineIndex = 0;
+      isTyping = false; fullText = '';
+      if (typeTimer) { typeTimer.remove(); typeTimer = null; }
+      dialogueBox.setVisible(false); dialogueSpeaker.setVisible(false);
+      dialogueText.setVisible(false); dialogueIndicator.setVisible(false);
+      updateHud(); updateHint();
+    }
+
+    function closeAllModals() {
+      menuElements.forEach(e => e.setVisible(false));
+      shopElements.forEach(e => e.setVisible(false));
+      charElements.forEach(e => e.setVisible(false));
+      pauseElements.forEach(e => e.setVisible(false));
+      clearCharBody();
+      inventorySelectedItem = null;
+    }
+
+    // ============================================================
+    //  FLOATING TEXT
+    // ============================================================
+    function showFloatingText(gridX, gridY, message, colorStr) {
+      const p = tileToPixel(gridX, gridY);
+      const t = sceneRef.add.text(p.x, p.y - 14, message, {
+        fontFamily: '"Press Start 2P"', fontSize: '10px', color: colorStr,
+        stroke: '#000000', strokeThickness: 3,
+      }).setOrigin(0.5).setDepth(50);
+      sceneRef.tweens.add({
+        targets: t, y: p.y - 50, alpha: 0,
+        duration: 1300, ease: 'Cubic.Out',
+        onComplete: () => t.destroy(),
+      });
+    }
+
+    // ============================================================
+    //  HELPERS
+    // ============================================================
+    function tileToPixel(gx, gy) {
+      return { x: gx * TILE_SIZE + TILE_SIZE / 2, y: gy * TILE_SIZE + TILE_SIZE / 2 + MAP_OFFSET_Y };
+    }
+
+    function getFrontTile() {
+      let dx = 0, dy = 0;
+      if (playerFacing === 'up')    dy = -1;
+      if (playerFacing === 'down')  dy =  1;
+      if (playerFacing === 'left')  dx = -1;
+      if (playerFacing === 'right') dx =  1;
+      return { x: playerGridX + dx, y: playerGridY + dy };
+    }
+
+    function updateHint() {
+      const front = getFrontTile();
+      const facing = visibleNpcs().find(n => n.gridX === front.x && n.gridY === front.y);
+      if (facing) {
+        const verb = facing.isBoss ? 'challenge'
+                   : facing.isOfficeSign ? 'enter'
+                   : (facing.menuOptions && facing.menuOptions.length > 0) ? 'open menu with'
+                   : 'talk to';
+        hintText.setText('Press [Space] to ' + verb + ' ' + facing.name);
+      } else {
+        hintText.setText('');
+      }
+    }
+
+    function canWalkTo(x, y) {
+      const m = maps[currentMapId];
+      if (x < 0 || y < 0 || y >= m.layout.length || x >= m.layout[0].length) return false;
+      const def = m.tileDefs[m.layout[y][x]];
+      if (!def.walkable) return false;
+      for (const n of visibleNpcs()) if (n.gridX === x && n.gridY === y) return false;
+      return true;
+    }
+
+    function updateFacingIndicator() {
+      if (!playerEye || !player) return;
+      let ex = 0, ey = 0;
+      if (playerFacing === 'up')    { ex = 0;  ey = -9; }
+      if (playerFacing === 'down')  { ex = 0;  ey = 9;  }
+      if (playerFacing === 'left')  { ex = -9; ey = 0;  }
+      if (playerFacing === 'right') { ex = 9;  ey = 0;  }
+      playerEye.x = player.x + ex;
+      playerEye.y = player.y + ey;
+      if (playerFacing === 'left' || playerFacing === 'right') playerEye.setSize(4, 8);
+      else playerEye.setSize(8, 4);
+    }
