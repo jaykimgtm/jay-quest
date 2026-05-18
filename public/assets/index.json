@@ -1,6 +1,21 @@
 {
   "version": 1,
-  "characters": [],
+  "characters": [
+    { "id": "jay", "name": "Jay", "file": "characters/jay.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 0, "left": 1, "right": 2, "up": 3 } },
+    { "id": "wife", "name": "Wife", "file": "characters/wife.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 0, "left": 1, "right": 2, "up": 3 } },
+    { "id": "fu_chan", "name": "Fu Chan", "file": "characters/fu_chan.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 0, "left": 1, "right": 2, "up": 3 } },
+    { "id": "mion", "name": "Mion", "file": "characters/mion.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 0, "left": 1, "right": 2, "up": 3 } },
+    { "id": "takeda", "name": "Takeda", "file": "characters/takeda.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 0, "left": 1, "right": 2, "up": 3 } },
+    { "id": "shiori", "name": "Shiori", "file": "characters/shiori.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 0, "left": 1, "right": 2, "up": 3 } },
+    { "id": "the_director", "name": "The Director", "file": "characters/the_director.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 0, "left": 1, "right": 2, "up": 3 } },
+    { "id": "the_vp", "name": "The VP", "file": "characters/the_vp.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 0, "left": 1, "right": 2, "up": 3 } },
+    { "id": "opposing_colleague", "name": "Opposing Colleague", "file": "characters/opposing_colleague.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 0, "left": 1, "right": 2, "up": 3 } },
+    { "id": "the_screener", "name": "The Screener", "file": "characters/the_screener.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 0, "left": 1, "right": 2, "up": 3 } },
+    { "id": "the_hiring_manager", "name": "The Hiring Manager", "file": "characters/the_hiring_manager.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 0, "left": 1, "right": 2, "up": 3 } },
+    { "id": "the_regional_lead", "name": "The Regional Lead", "file": "characters/the_regional_lead.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 0, "left": 1, "right": 2, "up": 3 } },
+    { "id": "the_executive", "name": "The Executive", "file": "characters/the_executive.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 0, "left": 1, "right": 2, "up": 3 } },
+    { "id": "the_final_round", "name": "The Final Round", "file": "characters/the_final_round.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 0, "left": 1, "right": 2, "up": 3 } }
+  ],
   "tiles": [],
   "backgrounds": [],
   "bgm": [],

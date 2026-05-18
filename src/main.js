@@ -202,6 +202,72 @@ import Phaser from 'phaser';
       },
     };
 
+    // ---------- CHARACTER SPRITES ----------
+    // 16x16 sprite sheets use four idle frames in this order:
+    // 0 down, 1 left, 2 right, 3 up.
+    const CHARACTER_FRAME_SIZE = 16;
+    const CHARACTER_FRAME_BY_FACING = { down: 0, left: 1, right: 2, up: 3 };
+    const characterSprites = [
+      { id: 'jay', name: 'Jay', file: 'jay.png' },
+      { id: 'wife', name: 'Wife', file: 'wife.png' },
+      { id: 'fu_chan', name: 'Fu Chan', file: 'fu_chan.png' },
+      { id: 'mion', name: 'Mion', file: 'mion.png' },
+      { id: 'takeda', name: 'Takeda', file: 'takeda.png' },
+      { id: 'shiori', name: 'Shiori', file: 'shiori.png' },
+      { id: 'the_director', name: 'The Director', file: 'the_director.png' },
+      { id: 'the_vp', name: 'The VP', file: 'the_vp.png' },
+      { id: 'opposing_colleague', name: 'Opposing Colleague', file: 'opposing_colleague.png' },
+      { id: 'the_screener', name: 'The Screener', file: 'the_screener.png' },
+      { id: 'the_hiring_manager', name: 'The Hiring Manager', file: 'the_hiring_manager.png' },
+      { id: 'the_regional_lead', name: 'The Regional Lead', file: 'the_regional_lead.png' },
+      { id: 'the_executive', name: 'The Executive', file: 'the_executive.png' },
+      { id: 'the_final_round', name: 'The Final Round', file: 'the_final_round.png' },
+    ];
+    const characterSpriteById = Object.fromEntries(characterSprites.map(c => [c.id, c]));
+    const characterSpriteIdByName = Object.fromEntries(characterSprites.map(c => [c.name, c.id]));
+
+    function characterTextureKey(characterId) {
+      return 'character_' + characterId;
+    }
+
+    function characterAssetUrl(file) {
+      return (import.meta.env.BASE_URL || '/') + 'assets/characters/' + file;
+    }
+
+    function preloadCharacterAssets(scene) {
+      for (const character of characterSprites) {
+        const key = characterTextureKey(character.id);
+        if (scene.textures.exists(key)) continue;
+        scene.load.spritesheet(key, characterAssetUrl(character.file), {
+          frameWidth: CHARACTER_FRAME_SIZE,
+          frameHeight: CHARACTER_FRAME_SIZE,
+        });
+      }
+    }
+
+    function characterFrameForFacing(facing) {
+      return CHARACTER_FRAME_BY_FACING[facing] ?? CHARACTER_FRAME_BY_FACING.down;
+    }
+
+    function characterIdForActor(actor) {
+      if (!actor) return null;
+      if (actor.characterId && characterSpriteById[actor.characterId]) return actor.characterId;
+      if (actor.name && characterSpriteIdByName[actor.name]) return characterSpriteIdByName[actor.name];
+      if (actor.bossId && bosses[actor.bossId]) return characterSpriteIdByName[bosses[actor.bossId].name] || null;
+      return null;
+    }
+
+    function addCharacterSprite(scene, x, y, characterId, facing, scale, depth) {
+      const character = characterSpriteById[characterId];
+      if (!character) return null;
+      const key = characterTextureKey(character.id);
+      if (!scene.textures.exists(key)) return null;
+      return scene.add.sprite(x, y, key, characterFrameForFacing(facing))
+        .setOrigin(0.5)
+        .setScale(scale || 2)
+        .setDepth(depth || 0);
+    }
+
     // ============================================================
     //  MAPS — each is a self-contained zone (data only)
     // ============================================================
@@ -951,6 +1017,9 @@ import Phaser from 'phaser';
     // ============================================================
     const MenuScene = {
       key: 'menu',
+      preload: function () {
+        preloadCharacterAssets(this);
+      },
       create: function () {
         activeSceneKey = 'menu';
         const s = this;
@@ -1050,6 +1119,9 @@ import Phaser from 'phaser';
 
     const GameScene = {
       key: 'game',
+      preload: function () {
+        preloadCharacterAssets(this);
+      },
       create: function (data) {
         sceneRef = this;
         activeSceneKey = 'game';
@@ -1156,6 +1228,9 @@ import Phaser from 'phaser';
     // ============================================================
     const BattleScene = {
       key: 'battle',
+      preload: function () {
+        preloadCharacterAssets(this);
+      },
       create: function (data) {
         const scene = this;
         activeSceneKey = 'battle';
@@ -1224,11 +1299,15 @@ import Phaser from 'phaser';
           fontFamily: 'VT323', fontSize: '18px', color: '#a8a89a',
         }).setOrigin(0.5);
 
-        // Enemy "sprite" (colored block + letter, same vocabulary as overworld NPCs)
-        const enemyBlock = scene.add.rectangle(W / 2, ENEMY_TOP + 100, 56, 56, boss.color);
-        scene.add.text(W / 2, ENEMY_TOP + 100, boss.letter, {
-          fontFamily: '"Press Start 2P"', fontSize: '22px', color: '#1a1410',
-        }).setOrigin(0.5);
+        // Enemy sprite, with the original colored block retained as a fallback.
+        const enemyCharacterId = characterIdForActor(boss);
+        const enemyBlock = addCharacterSprite(scene, W / 2, ENEMY_TOP + 100, enemyCharacterId, 'down', 4, 5)
+          || scene.add.rectangle(W / 2, ENEMY_TOP + 100, 56, 56, boss.color);
+        if (enemyBlock.type !== 'Sprite') {
+          scene.add.text(W / 2, ENEMY_TOP + 100, boss.letter, {
+            fontFamily: '"Press Start 2P"', fontSize: '22px', color: '#1a1410',
+          }).setOrigin(0.5);
+        }
 
         // Enemy HP bar
         const ebarY = ENEMY_TOP + 148;
@@ -1672,6 +1751,8 @@ import Phaser from 'phaser';
         height: TOTAL_H,
         parent: 'game',
         backgroundColor: '#1a1410',
+        pixelArt: true,
+        roundPixels: true,
         scene: [MenuScene, GameScene, BattleScene],
         // No scale manager — canvas is fixed at native size, CSS scales it visually.
         // Using Scale.FIT here caused a layout feedback loop where the #game parent
@@ -1943,25 +2024,42 @@ import Phaser from 'phaser';
     function createNpcs() {
       for (const npc of visibleNpcs()) {
         const p = tileToPixel(npc.gridX, npc.gridY);
-        const rect = sceneRef.add.rectangle(p.x, p.y, TILE_SIZE - 6, TILE_SIZE - 6, npc.color);
-        const letter = sceneRef.add.text(p.x, p.y, npc.letter, {
-          fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#1a1410'
-        }).setOrigin(0.5);
+        const characterId = characterIdForActor(npc);
+        const sprite = addCharacterSprite(sceneRef, p.x, p.y, characterId, 'down', 2, 9);
+        const npcObjects = [];
+        if (sprite) {
+          npcObjects.push(sprite);
+        } else {
+          const rect = sceneRef.add.rectangle(p.x, p.y, TILE_SIZE - 6, TILE_SIZE - 6, npc.color);
+          const letter = sceneRef.add.text(p.x, p.y, npc.letter, {
+            fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#1a1410'
+          }).setOrigin(0.5);
+          npcObjects.push(rect, letter);
+        }
         const tag = sceneRef.add.text(p.x, p.y + TILE_SIZE / 2 + 8, npc.name, {
           fontFamily: 'VT323', fontSize: '13px', color: '#1a1410',
           stroke: '#ffffff', strokeThickness: 2
-        }).setOrigin(0.5);
-        activeNpcObjects.push(rect, letter, tag);
+        }).setOrigin(0.5).setDepth(9);
+        activeNpcObjects.push(...npcObjects, tag);
       }
     }
 
     function createPlayer() {
       const p = tileToPixel(playerGridX, playerGridY);
-      player = sceneRef.add.rectangle(p.x, p.y, TILE_SIZE - 6, TILE_SIZE - 6, 0x4a90e2);
-      playerLabel = sceneRef.add.text(p.x, p.y, 'J', {
-        fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#ffffff'
-      }).setOrigin(0.5);
-      playerEye = sceneRef.add.rectangle(p.x, p.y + 9, 8, 4, 0xffffff);
+      const sprite = addCharacterSprite(sceneRef, p.x, p.y, 'jay', playerFacing, 2, 10);
+      if (sprite) {
+        player = sprite;
+        playerLabel = sceneRef.add.text(p.x, p.y, '', {
+          fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#ffffff'
+        }).setOrigin(0.5).setVisible(false);
+        playerEye = sceneRef.add.rectangle(p.x, p.y + 9, 8, 4, 0xffffff).setVisible(false);
+      } else {
+        player = sceneRef.add.rectangle(p.x, p.y, TILE_SIZE - 6, TILE_SIZE - 6, 0x4a90e2);
+        playerLabel = sceneRef.add.text(p.x, p.y, 'J', {
+          fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#ffffff'
+        }).setOrigin(0.5);
+        playerEye = sceneRef.add.rectangle(p.x, p.y + 9, 8, 4, 0xffffff);
+      }
       player.setDepth(10); playerLabel.setDepth(11); playerEye.setDepth(12);
     }
 
@@ -3078,6 +3176,10 @@ import Phaser from 'phaser';
 
     function updateFacingIndicator() {
       if (!playerEye || !player) return;
+      if (typeof player.setFrame === 'function') {
+        player.setFrame(characterFrameForFacing(playerFacing));
+      }
+      if (!playerEye.visible) return;
       let ex = 0, ey = 0;
       if (playerFacing === 'up')    { ex = 0;  ey = -9; }
       if (playerFacing === 'down')  { ex = 0;  ey = 9;  }
