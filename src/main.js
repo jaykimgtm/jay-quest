@@ -245,6 +245,53 @@ import Phaser from 'phaser';
       }
     }
 
+    // ---------- TILE SPRITES ----------
+    // 32x32 pixel tiles replace the old solid-color map rectangles.
+    const tileSprites = [
+      { id: 'house_floor', file: 'house_floor.png' },
+      { id: 'house_wall', file: 'house_wall.png' },
+      { id: 'house_furniture', file: 'house_furniture.png' },
+      { id: 'house_door', file: 'house_door.png' },
+      { id: 'town_grass', file: 'town_grass.png' },
+      { id: 'town_path', file: 'town_path.png' },
+      { id: 'town_tree', file: 'town_tree.png' },
+      { id: 'town_house_entrance', file: 'town_house_entrance.png' },
+      { id: 'town_house_wall', file: 'town_house_wall.png' },
+      { id: 'town_house_roof', file: 'town_house_roof.png' },
+      { id: 'town_flower', file: 'town_flower.png' },
+      { id: 'salesforce_floor', file: 'salesforce_floor.png' },
+      { id: 'salesforce_wall', file: 'salesforce_wall.png' },
+      { id: 'salesforce_desk', file: 'salesforce_desk.png' },
+      { id: 'salesforce_exit', file: 'salesforce_exit.png' },
+      { id: 'anthropic_floor', file: 'anthropic_floor.png' },
+      { id: 'anthropic_wall', file: 'anthropic_wall.png' },
+      { id: 'anthropic_desk', file: 'anthropic_desk.png' },
+      { id: 'anthropic_exit', file: 'anthropic_exit.png' },
+      { id: 'anthropic_plant', file: 'anthropic_plant.png' },
+      { id: 'airport_floor', file: 'airport_floor.png' },
+      { id: 'airport_wall', file: 'airport_wall.png' },
+      { id: 'airport_bench', file: 'airport_bench.png' },
+      { id: 'airport_window', file: 'airport_window.png' },
+      { id: 'airport_entry', file: 'airport_entry.png' },
+    ];
+    const tileSpriteById = Object.fromEntries(tileSprites.map(t => [t.id, t]));
+
+    function tileTextureKey(tileId) {
+      return 'tile_' + tileId;
+    }
+
+    function tileAssetUrl(file) {
+      return (import.meta.env.BASE_URL || '/') + 'assets/tiles/' + file;
+    }
+
+    function preloadTileAssets(scene) {
+      for (const tile of tileSprites) {
+        const key = tileTextureKey(tile.id);
+        if (scene.textures.exists(key)) continue;
+        scene.load.image(key, tileAssetUrl(tile.file));
+      }
+    }
+
     function characterFrameForFacing(facing) {
       return CHARACTER_FRAME_BY_FACING[facing] ?? CHARACTER_FRAME_BY_FACING.down;
     }
@@ -289,10 +336,10 @@ import Phaser from 'phaser';
           [1,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,1],
         ],
         tileDefs: [
-          { color: 0xd4a574, walkable: true  }, // 0 floor
-          { color: 0x4a2c1a, walkable: false }, // 1 wall
-          { color: 0x8b6f47, walkable: false }, // 2 furniture
-          { color: 0xc99a6a, walkable: true  }, // 3 door (transition)
+          { color: 0xd4a574, texture: 'house_floor', walkable: true  }, // 0 floor
+          { color: 0x4a2c1a, texture: 'house_wall', walkable: false }, // 1 wall
+          { color: 0x8b6f47, texture: 'house_furniture', walkable: false }, // 2 furniture
+          { color: 0xc99a6a, texture: 'house_door', walkable: true  }, // 3 door (transition)
         ],
         npcs: [
           {
@@ -413,13 +460,13 @@ import Phaser from 'phaser';
           [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
         ],
         tileDefs: [
-          { color: 0x6a8c3f, walkable: true  }, // 0 grass
-          { color: 0xb8956a, walkable: true  }, // 1 path
-          { color: 0x2d4a1f, walkable: false }, // 2 tree
-          { color: 0xc99a6a, walkable: true  }, // 3 house entrance (transition)
-          { color: 0x6b3410, walkable: false }, // 4 house wall (outside view)
-          { color: 0x8b3a1f, walkable: false }, // 5 house roof
-          { color: 0xff6b9d, walkable: false }, // 6 flower
+          { color: 0x6a8c3f, texture: 'town_grass', walkable: true  }, // 0 grass
+          { color: 0xb8956a, texture: 'town_path', walkable: true  }, // 1 path
+          { color: 0x2d4a1f, texture: 'town_tree', walkable: false }, // 2 tree
+          { color: 0xc99a6a, texture: 'town_house_entrance', walkable: true  }, // 3 house entrance (transition)
+          { color: 0x6b3410, texture: 'town_house_wall', walkable: false }, // 4 house wall (outside view)
+          { color: 0x8b3a1f, texture: 'town_house_roof', walkable: false }, // 5 house roof
+          { color: 0xff6b9d, texture: 'town_flower', walkable: false }, // 6 flower
         ],
         npcs: [
           {
@@ -523,10 +570,10 @@ import Phaser from 'phaser';
           [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
         ],
         tileDefs: [
-          { color: 0xb8b8c2, walkable: true  }, // 0 floor (corporate gray)
-          { color: 0x3a4a5a, walkable: false }, // 1 wall
-          { color: 0x4a5a6a, walkable: false }, // 2 desk
-          { color: 0x6a8c3f, walkable: true  }, // 3 exit mat (back to town)
+          { color: 0xb8b8c2, texture: 'salesforce_floor', walkable: true  }, // 0 floor (corporate gray)
+          { color: 0x3a4a5a, texture: 'salesforce_wall', walkable: false }, // 1 wall
+          { color: 0x4a5a6a, texture: 'salesforce_desk', walkable: false }, // 2 desk
+          { color: 0x6a8c3f, texture: 'salesforce_exit', walkable: true  }, // 3 exit mat (back to town)
         ],
         npcs: [
           { name: 'The Director', letter: 'D', gridX: 3, gridY: 5, color: 0xc23b22,
@@ -608,11 +655,11 @@ import Phaser from 'phaser';
           [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
         ],
         tileDefs: [
-          { color: 0xf5e6d3, walkable: true  }, // 0 cream floor
-          { color: 0x8b3a1f, walkable: false }, // 1 terracotta wall
-          { color: 0xa67857, walkable: false }, // 2 wooden desk
-          { color: 0x6a8c3f, walkable: true  }, // 3 exit mat
-          { color: 0x2d4a1f, walkable: false }, // 4 plant
+          { color: 0xf5e6d3, texture: 'anthropic_floor', walkable: true  }, // 0 cream floor
+          { color: 0x8b3a1f, texture: 'anthropic_wall', walkable: false }, // 1 terracotta wall
+          { color: 0xa67857, texture: 'anthropic_desk', walkable: false }, // 2 wooden desk
+          { color: 0x6a8c3f, texture: 'anthropic_exit', walkable: true  }, // 3 exit mat
+          { color: 0x2d4a1f, texture: 'anthropic_plant', walkable: false }, // 4 plant
         ],
         npcs: [
           { name: 'The Screener', letter: 'S', gridX: 4, gridY: 3, color: 0xc084fc,
@@ -656,11 +703,11 @@ import Phaser from 'phaser';
           [1,1,1,1,1,1,1,1,1,1,1,1,1,1],
         ],
         tileDefs: [
-          { color: 0xd4c5a8, walkable: true  }, // 0 light beige carpet floor
-          { color: 0x3a3a44, walkable: false }, // 1 dark slate wall
-          { color: 0x6b4a2a, walkable: false }, // 2 wooden bench
-          { color: 0x6a8caf, walkable: false }, // 3 window (runway view)
-          { color: 0x8b6f47, walkable: true  }, // 4 entry mat (back to town)
+          { color: 0xd4c5a8, texture: 'airport_floor', walkable: true  }, // 0 light beige carpet floor
+          { color: 0x3a3a44, texture: 'airport_wall', walkable: false }, // 1 dark slate wall
+          { color: 0x6b4a2a, texture: 'airport_bench', walkable: false }, // 2 wooden bench
+          { color: 0x6a8caf, texture: 'airport_window', walkable: false }, // 3 window (runway view)
+          { color: 0x8b6f47, texture: 'airport_entry', walkable: true  }, // 4 entry mat (back to town)
         ],
         npcs: [
           // Boarding Gate — interacting triggers the credits sequence.
@@ -1121,6 +1168,7 @@ import Phaser from 'phaser';
       key: 'game',
       preload: function () {
         preloadCharacterAssets(this);
+        preloadTileAssets(this);
       },
       create: function (data) {
         sceneRef = this;
@@ -2006,10 +2054,18 @@ import Phaser from 'phaser';
         for (let x = 0; x < m.layout[y].length; x++) {
           const def = m.tileDefs[m.layout[y][x]];
           const p = tileToPixel(x, y);
-          const rect = sceneRef.add.rectangle(p.x, p.y, TILE_SIZE - 1, TILE_SIZE - 1, def.color);
-          activeTileObjects.push(rect);
+          const tile = addMapTile(p.x, p.y, def);
+          activeTileObjects.push(tile);
         }
       }
+    }
+
+    function addMapTile(x, y, def) {
+      const texture = def.texture && tileSpriteById[def.texture] ? tileTextureKey(def.texture) : null;
+      if (texture && sceneRef.textures.exists(texture)) {
+        return sceneRef.add.image(x, y, texture).setDisplaySize(TILE_SIZE, TILE_SIZE);
+      }
+      return sceneRef.add.rectangle(x, y, TILE_SIZE - 1, TILE_SIZE - 1, def.color);
     }
 
     function visibleNpcs() {
