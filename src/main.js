@@ -203,10 +203,17 @@ import Phaser from 'phaser';
     };
 
     // ---------- CHARACTER SPRITES ----------
-    // 16x16 sprite sheets use four idle frames in this order:
-    // 0 down, 1 left, 2 right, 3 up.
+    // 16x16 sprite sheets use three-frame walk cycles per facing:
+    // down 0-2, left 3-5, right 6-8, up 9-11.
     const CHARACTER_FRAME_SIZE = 16;
-    const CHARACTER_FRAME_BY_FACING = { down: 0, left: 1, right: 2, up: 3 };
+    const CHARACTER_IDLE_FRAME_BY_FACING = { down: 1, left: 4, right: 7, up: 10 };
+    const CHARACTER_WALK_FRAMES_BY_FACING = {
+      down: [0, 1, 2, 1],
+      left: [3, 4, 5, 4],
+      right: [6, 7, 8, 7],
+      up: [9, 10, 11, 10],
+    };
+    const CHARACTER_WALK_FRAME_RATE = 8;
     const characterSprites = [
       { id: 'jay', name: 'Jay', file: 'jay.png' },
       { id: 'wife', name: 'Wife', file: 'wife.png' },
@@ -242,6 +249,27 @@ import Phaser from 'phaser';
           frameWidth: CHARACTER_FRAME_SIZE,
           frameHeight: CHARACTER_FRAME_SIZE,
         });
+      }
+    }
+
+    function characterWalkAnimationKey(characterId, facing) {
+      return 'character_' + characterId + '_walk_' + facing;
+    }
+
+    function ensureCharacterAnimations(scene) {
+      for (const character of characterSprites) {
+        const textureKey = characterTextureKey(character.id);
+        if (!scene.textures.exists(textureKey)) continue;
+        for (const facing of Object.keys(CHARACTER_WALK_FRAMES_BY_FACING)) {
+          const animKey = characterWalkAnimationKey(character.id, facing);
+          if (scene.anims.exists(animKey)) continue;
+          scene.anims.create({
+            key: animKey,
+            frames: CHARACTER_WALK_FRAMES_BY_FACING[facing].map(frame => ({ key: textureKey, frame })),
+            frameRate: CHARACTER_WALK_FRAME_RATE,
+            repeat: -1,
+          });
+        }
       }
     }
 
@@ -293,7 +321,7 @@ import Phaser from 'phaser';
     }
 
     function characterFrameForFacing(facing) {
-      return CHARACTER_FRAME_BY_FACING[facing] ?? CHARACTER_FRAME_BY_FACING.down;
+      return CHARACTER_IDLE_FRAME_BY_FACING[facing] ?? CHARACTER_IDLE_FRAME_BY_FACING.down;
     }
 
     function characterIdForActor(actor) {
@@ -313,6 +341,18 @@ import Phaser from 'phaser';
         .setOrigin(0.5)
         .setScale(scale || 2)
         .setDepth(depth || 0);
+    }
+
+    function playCharacterWalk(sprite, characterId, facing) {
+      if (!sprite || typeof sprite.play !== 'function' || !characterId) return;
+      const key = characterWalkAnimationKey(characterId, facing);
+      if (sprite.scene && sprite.scene.anims.exists(key)) sprite.play(key, true);
+    }
+
+    function stopCharacterWalk(sprite, facing) {
+      if (!sprite || typeof sprite.setFrame !== 'function') return;
+      if (typeof sprite.stop === 'function') sprite.stop();
+      sprite.setFrame(characterFrameForFacing(facing));
     }
 
     // ============================================================
@@ -1207,6 +1247,7 @@ import Phaser from 'phaser';
           resetGameStateToDefaults();
         }
 
+        ensureCharacterAnimations(this);
         createHud();
         createBottomUi();
         createNpcMenuUi();
@@ -1259,12 +1300,14 @@ import Phaser from 'phaser';
         isMoving = true;
         playerGridX = tx; playerGridY = ty;
         const p = tileToPixel(tx, ty);
+        playCharacterWalk(player, 'jay', playerFacing);
         this.tweens.add({
           targets: [player, playerLabel],
           x: p.x, y: p.y,
           duration: 160, ease: 'Linear',
           onComplete: () => {
             isMoving = false;
+            stopCharacterWalk(player, playerFacing);
             checkExitTrigger();
           },
         });
@@ -1969,6 +2012,7 @@ import Phaser from 'phaser';
         const p = tileToPixel(spawnX, spawnY);
         player.x = p.x;  player.y = p.y;
         playerLabel.x = p.x; playerLabel.y = p.y;
+        stopCharacterWalk(player, playerFacing);
 
         // Camera bounds change per map
         setupCameraForMap();
@@ -2084,6 +2128,7 @@ import Phaser from 'phaser';
         const sprite = addCharacterSprite(sceneRef, p.x, p.y, characterId, 'down', 2, 9);
         const npcObjects = [];
         if (sprite) {
+          playCharacterWalk(sprite, characterId, 'down');
           npcObjects.push(sprite);
         } else {
           const rect = sceneRef.add.rectangle(p.x, p.y, TILE_SIZE - 6, TILE_SIZE - 6, npc.color);
@@ -3232,7 +3277,7 @@ import Phaser from 'phaser';
 
     function updateFacingIndicator() {
       if (!playerEye || !player) return;
-      if (typeof player.setFrame === 'function') {
+      if (!isMoving && typeof player.setFrame === 'function') {
         player.setFrame(characterFrameForFacing(playerFacing));
       }
       if (!playerEye.visible) return;
