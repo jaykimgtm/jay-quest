@@ -287,6 +287,22 @@ import Phaser from 'phaser';
       { id: 'town_house_wall', file: 'town_house_wall.png' },
       { id: 'town_house_roof', file: 'town_house_roof.png' },
       { id: 'town_flower', file: 'town_flower.png' },
+      { id: 'town_salesforce_top_left', file: 'town_salesforce_top_left.png' },
+      { id: 'town_salesforce_top_right', file: 'town_salesforce_top_right.png' },
+      { id: 'town_salesforce_mid_left', file: 'town_salesforce_mid_left.png' },
+      { id: 'town_salesforce_mid_right', file: 'town_salesforce_mid_right.png' },
+      { id: 'town_salesforce_lower_left', file: 'town_salesforce_lower_left.png' },
+      { id: 'town_salesforce_lower_right', file: 'town_salesforce_lower_right.png' },
+      { id: 'town_salesforce_entry_left', file: 'town_salesforce_entry_left.png' },
+      { id: 'town_salesforce_entry_right', file: 'town_salesforce_entry_right.png' },
+      { id: 'town_anthropic_top_left', file: 'town_anthropic_top_left.png' },
+      { id: 'town_anthropic_top_right', file: 'town_anthropic_top_right.png' },
+      { id: 'town_anthropic_bottom_left', file: 'town_anthropic_bottom_left.png' },
+      { id: 'town_anthropic_bottom_right', file: 'town_anthropic_bottom_right.png' },
+      { id: 'town_airport_gate_left', file: 'town_airport_gate_left.png' },
+      { id: 'town_airport_gate_right', file: 'town_airport_gate_right.png' },
+      { id: 'town_welcome_mat', file: 'town_welcome_mat.png' },
+      { id: 'town_path_flower', file: 'town_path_flower.png' },
       { id: 'salesforce_floor', file: 'salesforce_floor.png' },
       { id: 'salesforce_wall', file: 'salesforce_wall.png' },
       { id: 'salesforce_desk', file: 'salesforce_desk.png' },
@@ -419,7 +435,7 @@ import Phaser from 'phaser';
             ],
           },
           {
-            name: 'Fu Chan', letter: 'F', gridX: 10, gridY: 8, color: 0xff9933,
+            name: 'Fu Chan', letter: 'F', gridX: 10, gridY: 8, color: 0x8f969d,
             gratitudeReward: 0,
             menuOptions: [
               { label: 'Talk', action: 'talk' },
@@ -475,27 +491,29 @@ import Phaser from 'phaser';
         ],
         // Exits: keyed by "gridX,gridY". Landing on this tile triggers the transition.
         exits: {
-          '9,11':  { to: 'town', x: 5, y: 6, facing: 'down' },
-          '10,11': { to: 'town', x: 5, y: 6, facing: 'down' },
+          '9,11':  { to: 'town', x: 7, y: 6, facing: 'down' },
+          '10,11': { to: 'town', x: 7, y: 6, facing: 'down' },
         },
       },
 
       town: {
         // 22 cols x 14 rows. Larger than viewport — camera will scroll.
-        // Tile codes: 0=grass, 1=path, 2=tree, 3=entrance, 4=wall, 5=roof, 6=flower
+        // Tile codes: 0=grass, 1=path, 2=tree, 3=home entrance, 4=home wall,
+        // 5=home roof, 6=flower, 7-14=Salesforce tower, 15-18=Anthropic office,
+        // 19-20=airport gate, 21=welcome mat, 22=flowered road.
         layout: [
           [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
           [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
-          [2,0,0,5,5,5,5,5,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
-          [2,0,0,5,5,5,5,5,0,0,0,0,2,0,0,0,0,0,0,0,0,2],
-          [2,0,0,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
-          [2,0,0,4,4,3,4,4,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
-          [2,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
-          [2,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,2],
-          [2,0,6,6,1,1,1,6,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
-          [2,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
-          [2,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
-          [2,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+          [2,7,8,0,0,5,5,5,5,5,0,0,0,0,0,0,0,0,0,0,0,2],
+          [2,9,10,0,0,5,5,5,5,5,0,0,2,0,0,0,0,0,15,16,0,2],
+          [2,11,12,0,0,4,4,4,4,4,0,0,0,0,0,0,0,0,17,18,0,2],
+          [2,13,14,0,0,4,4,3,4,4,0,0,0,0,0,0,0,0,1,1,0,2],
+          [2,0,22,22,22,22,22,21,22,22,22,22,22,22,22,22,22,22,22,0,0,2],
+          [2,0,0,0,0,0,0,22,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+          [2,0,6,6,0,0,6,22,6,0,0,0,0,0,0,0,0,0,6,6,0,2],
+          [2,0,0,0,0,0,0,22,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+          [2,0,0,0,0,0,0,22,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+          [2,0,0,0,0,0,0,19,20,0,0,0,0,0,0,0,0,0,0,0,0,2],
           [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
           [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
         ],
@@ -507,6 +525,22 @@ import Phaser from 'phaser';
           { color: 0x6b3410, texture: 'town_house_wall', walkable: false }, // 4 house wall (outside view)
           { color: 0x8b3a1f, texture: 'town_house_roof', walkable: false }, // 5 house roof
           { color: 0xff6b9d, texture: 'town_flower', walkable: false }, // 6 flower
+          { color: 0xd8e4eb, texture: 'town_salesforce_top_left', walkable: false }, // 7 Salesforce tower top L
+          { color: 0xd8e4eb, texture: 'town_salesforce_top_right', walkable: false }, // 8 Salesforce tower top R
+          { color: 0xd8e4eb, texture: 'town_salesforce_mid_left', walkable: false }, // 9 Salesforce tower mid L
+          { color: 0xd8e4eb, texture: 'town_salesforce_mid_right', walkable: false }, // 10 Salesforce tower mid R
+          { color: 0xd8e4eb, texture: 'town_salesforce_lower_left', walkable: false }, // 11 Salesforce tower lower L
+          { color: 0xd8e4eb, texture: 'town_salesforce_lower_right', walkable: false }, // 12 Salesforce tower lower R
+          { color: 0x6fb6dd, texture: 'town_salesforce_entry_left', walkable: false }, // 13 Salesforce lobby L
+          { color: 0x6fb6dd, texture: 'town_salesforce_entry_right', walkable: false }, // 14 Salesforce lobby R
+          { color: 0xe9e6dd, texture: 'town_anthropic_top_left', walkable: false }, // 15 Anthropic office top L
+          { color: 0xe9e6dd, texture: 'town_anthropic_top_right', walkable: false }, // 16 Anthropic office top R
+          { color: 0xe9e6dd, texture: 'town_anthropic_bottom_left', walkable: false }, // 17 Anthropic office bottom L
+          { color: 0xe9e6dd, texture: 'town_anthropic_bottom_right', walkable: false }, // 18 Anthropic office bottom R
+          { color: 0xcbd4dc, texture: 'town_airport_gate_left', walkable: false, requiresStage: 3, fallbackTexture: 'town_path', fallbackWalkable: true }, // 19 airport gate L
+          { color: 0xcbd4dc, texture: 'town_airport_gate_right', walkable: false, requiresStage: 3, fallbackTexture: 'town_grass', fallbackWalkable: true }, // 20 airport gate R
+          { color: 0x6f8f56, texture: 'town_welcome_mat', walkable: true, requiresStage: 3, fallbackTexture: 'town_path' }, // 21 welcome home mat
+          { color: 0xbd9468, texture: 'town_path_flower', walkable: true, requiresStage: 3, fallbackTexture: 'town_path' }, // 22 flowered road
         ],
         npcs: [
           {
@@ -545,16 +579,18 @@ import Phaser from 'phaser';
           },
           // ---- Office signs (interact to enter) ----
           {
-            name: 'Salesforce Office', letter: 'S', gridX: 1, gridY: 6, color: 0x4a90e2,
-            isOfficeSign: true, targetMap: 'salesforce_office',
+            name: 'Salesforce Office', letter: 'S', gridX: 2, gridY: 5, color: 0x4a90e2,
+            isOfficeSign: true, targetMap: 'salesforce_office', hideBody: true, labelOffsetY: 8,
+            interactionTiles: [{ x: 1, y: 5 }, { x: 2, y: 5 }],
             menuOptions: [
               { label: 'Enter', action: 'enter_office' },
               { label: 'Leave', action: 'leave' },
             ],
           },
           {
-            name: 'Anthropic Office', letter: 'A', gridX: 20, gridY: 6, color: 0xc084fc,
-            isOfficeSign: true, targetMap: 'anthropic_office', requiresStage: 1,
+            name: 'Anthropic Office', letter: 'A', gridX: 18, gridY: 4, color: 0xc084fc,
+            isOfficeSign: true, targetMap: 'anthropic_office', requiresStage: 1, hideBody: true, labelOffsetX: 16, labelOffsetY: 8,
+            interactionTiles: [{ x: 18, y: 4 }, { x: 19, y: 4 }],
             menuOptions: [
               { label: 'Enter', action: 'enter_office' },
               { label: 'Leave', action: 'leave' },
@@ -578,8 +614,9 @@ import Phaser from 'phaser';
           },
           // Airport Gate — the new door that opens when all Anthropic rounds are cleared.
           {
-            name: 'Airport Gate', letter: 'G', gridX: 5, gridY: 11, color: 0xc084fc,
-            isOfficeSign: true, targetMap: 'airport', requiresStage: 3,
+            name: 'Airport Gate', letter: 'G', gridX: 7, gridY: 11, color: 0xc084fc,
+            isOfficeSign: true, targetMap: 'airport', requiresStage: 3, hideBody: true, labelOffsetX: 16, labelOffsetY: -12,
+            interactionTiles: [{ x: 7, y: 11 }, { x: 8, y: 11 }],
             menuOptions: [
               { label: 'Head to airport', action: 'enter_office' },
               { label: 'Not yet', action: 'leave' },
@@ -587,7 +624,7 @@ import Phaser from 'phaser';
           },
         ],
         exits: {
-          '5,5': { to: 'house', x: 10, y: 10, facing: 'up' },
+          '7,5': { to: 'house', x: 10, y: 10, facing: 'up' },
         },
       },
 
@@ -670,8 +707,8 @@ import Phaser from 'phaser';
           },
         ],
         exits: {
-          '7,10':  { to: 'town', x: 1, y: 6, facing: 'right' },
-          '8,10':  { to: 'town', x: 1, y: 6, facing: 'right' },
+          '7,10':  { to: 'town', x: 2, y: 6, facing: 'down' },
+          '8,10':  { to: 'town', x: 2, y: 6, facing: 'down' },
         },
       },
 
@@ -702,13 +739,13 @@ import Phaser from 'phaser';
           { color: 0x2d4a1f, texture: 'anthropic_plant', walkable: false }, // 4 plant
         ],
         npcs: [
-          { name: 'The Screener', letter: 'S', gridX: 4, gridY: 3, color: 0xc084fc,
+          { name: 'The Screener', letter: 'S', gridX: 4, gridY: 2, color: 0xc084fc,
             isBoss: true, bossId: 'anthropic_recruiter',
             menuOptions: [{ label: 'Interview', action: 'fight' }, { label: 'Leave', action: 'leave' }] },
-          { name: 'The Hiring Manager', letter: 'H', gridX: 13, gridY: 3, color: 0xc084fc,
+          { name: 'The Hiring Manager', letter: 'H', gridX: 13, gridY: 2, color: 0xc084fc,
             isBoss: true, bossId: 'anthropic_hm',
             menuOptions: [{ label: 'Interview', action: 'fight' }, { label: 'Leave', action: 'leave' }] },
-          { name: 'The Regional Lead', letter: 'R', gridX: 9, gridY: 6, color: 0xc084fc,
+          { name: 'The Regional Lead', letter: 'R', gridX: 9, gridY: 5, color: 0xc084fc,
             isBoss: true, bossId: 'anthropic_lead',
             menuOptions: [{ label: 'Interview', action: 'fight' }, { label: 'Leave', action: 'leave' }] },
           { name: 'The Executive', letter: 'X', gridX: 5, gridY: 9, color: 0xc084fc,
@@ -719,8 +756,8 @@ import Phaser from 'phaser';
             menuOptions: [{ label: 'Interview', action: 'fight' }, { label: 'Leave', action: 'leave' }] },
         ],
         exits: {
-          '8,11':  { to: 'town', x: 20, y: 6, facing: 'left' },
-          '9,11':  { to: 'town', x: 20, y: 6, facing: 'left' },
+          '8,11':  { to: 'town', x: 18, y: 5, facing: 'down' },
+          '9,11':  { to: 'town', x: 18, y: 5, facing: 'down' },
         },
       },
 
@@ -729,12 +766,12 @@ import Phaser from 'phaser';
       // Interacting with the gate triggers the ending credits sequence.
       airport: {
         // 14 cols x 10 rows.
-        // Tile codes: 0=floor (light beige), 1=wall, 2=bench, 3=window, 4=entry mat
+        // Tile codes: 0=floor, 1=wall, 2=bench, 3=window, 4=entry mat, 5-6=boarding gate
         layout: [
           [1,1,1,1,1,1,1,1,1,1,1,1,1,1],
           [1,3,3,3,3,3,3,3,3,3,3,3,3,1],
           [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
-          [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+          [1,0,0,0,0,0,5,6,0,0,0,0,0,1],
           [1,0,2,2,0,0,0,0,0,0,2,2,0,1],
           [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
           [1,0,2,2,0,0,0,0,0,0,2,2,0,1],
@@ -748,11 +785,15 @@ import Phaser from 'phaser';
           { color: 0x6b4a2a, texture: 'airport_bench', walkable: false }, // 2 wooden bench
           { color: 0x6a8caf, texture: 'airport_window', walkable: false }, // 3 window (runway view)
           { color: 0x8b6f47, texture: 'airport_entry', walkable: true  }, // 4 entry mat (back to town)
+          { color: 0xcbd4dc, texture: 'town_airport_gate_left', walkable: false }, // 5 boarding gate L
+          { color: 0xcbd4dc, texture: 'town_airport_gate_right', walkable: false }, // 6 boarding gate R
         ],
         npcs: [
           // Boarding Gate — interacting triggers the credits sequence.
           {
             name: 'Boarding Gate · SFO', letter: 'G', gridX: 7, gridY: 3, color: 0xc084fc,
+            hideBody: true, labelOffsetX: -16, labelOffsetY: 4,
+            interactionTiles: [{ x: 6, y: 3 }, { x: 7, y: 3 }],
             menuOptions: [
               { label: 'Board the flight', action: 'board_flight' },
               { label: 'Wait a moment', action: 'leave' },
@@ -760,8 +801,8 @@ import Phaser from 'phaser';
           },
         ],
         exits: {
-          '6,8':  { to: 'town', x: 5, y: 10, facing: 'down' },
-          '7,8':  { to: 'town', x: 5, y: 10, facing: 'down' },
+          '6,8':  { to: 'town', x: 7, y: 10, facing: 'down' },
+          '7,8':  { to: 'town', x: 7, y: 10, facing: 'down' },
         },
       },
     };
@@ -1189,7 +1230,7 @@ import Phaser from 'phaser';
               newGameText.setColor('#ff9933');
               return;
             }
-            s.scene.start('game', { mode: 'new' });
+            s.scene.start('disclaimer');
           } else if (n === 2) {
             if (!hasExisting) return;
             s.scene.start('game', { mode: 'continue' });
@@ -1200,6 +1241,51 @@ import Phaser from 'phaser';
 
         // Touch hook — DOM number buttons route here when menu is active.
         window.__menuTouch = { number: menuChoose };
+        s.events.once('shutdown', () => { window.__menuTouch = null; });
+      },
+    };
+
+    const DisclaimerScene = {
+      key: 'disclaimer',
+      create: function () {
+        activeSceneKey = 'menu';
+        const s = this;
+        const cx = VIEWPORT_W / 2;
+        s.add.rectangle(VIEWPORT_W / 2, TOTAL_H / 2, VIEWPORT_W, TOTAL_H, 0x1a1410);
+        s.add.rectangle(cx, TOTAL_H / 2 + 8, VIEWPORT_W - 64, 330, 0x211813)
+          .setStrokeStyle(3, 0xd4a574);
+        s.add.text(cx, 120, 'FICTIONAL STORY', {
+          fontFamily: '"Press Start 2P"', fontSize: '18px', color: '#ffd966',
+          stroke: '#4a2c1a', strokeThickness: 4,
+        }).setOrigin(0.5);
+        s.add.text(cx, 262,
+          'All characters, bosses, dialogue,\n' +
+          'companies-as-dungeons, and events in\n' +
+          'this game are fictionalized for fun.\n\n' +
+          'Any resemblance to real people or\n' +
+          'real interview conversations is\n' +
+          'coincidental.', {
+          fontFamily: 'VT323', fontSize: '22px', color: '#ffffff',
+          align: 'center', lineSpacing: 6,
+        }).setOrigin(0.5);
+        const hint = s.add.text(cx, 420, 'Press Space or 1 to begin', {
+          fontFamily: '"Press Start 2P"', fontSize: '10px', color: '#d4a574',
+        }).setOrigin(0.5);
+        s.tweens.add({ targets: hint, alpha: { from: 1, to: 0.35 }, duration: 900, yoyo: true, repeat: -1 });
+
+        let started = false;
+        function begin() {
+          if (started) return;
+          started = true;
+          s.cameras.main.fadeOut(220, 26, 20, 16);
+          s.time.delayedCall(240, () => s.scene.start('game', { mode: 'new' }));
+        }
+        const kb = s.input.keyboard;
+        kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE).on('down', begin);
+        kb.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER).on('down', begin);
+        kb.addKey(Phaser.Input.Keyboard.KeyCodes.ONE).on('down', begin);
+
+        window.__menuTouch = { number: begin };
         s.events.once('shutdown', () => { window.__menuTouch = null; });
       },
     };
@@ -1844,7 +1930,7 @@ import Phaser from 'phaser';
         backgroundColor: '#1a1410',
         pixelArt: true,
         roundPixels: true,
-        scene: [MenuScene, GameScene, BattleScene],
+        scene: [MenuScene, DisclaimerScene, GameScene, BattleScene],
         // No scale manager — canvas is fixed at native size, CSS scales it visually.
         // Using Scale.FIT here caused a layout feedback loop where the #game parent
         // and Phaser's resize manager fought each other on key events.
@@ -2096,12 +2182,22 @@ import Phaser from 'phaser';
       const m = maps[currentMapId];
       for (let y = 0; y < m.layout.length; y++) {
         for (let x = 0; x < m.layout[y].length; x++) {
-          const def = m.tileDefs[m.layout[y][x]];
+          const def = resolveMapTileDef(m, x, y);
           const p = tileToPixel(x, y);
           const tile = addMapTile(p.x, p.y, def);
           activeTileObjects.push(tile);
         }
       }
+    }
+
+    function resolveMapTileDef(m, x, y) {
+      const def = m.tileDefs[m.layout[y][x]];
+      if (!def || !def.requiresStage || storyStage >= def.requiresStage) return def;
+      return {
+        color: def.fallbackColor || def.color,
+        texture: def.fallbackTexture || def.texture,
+        walkable: def.fallbackWalkable ?? def.walkable,
+      };
     }
 
     function addMapTile(x, y, def) {
@@ -2125,19 +2221,19 @@ import Phaser from 'phaser';
       for (const npc of visibleNpcs()) {
         const p = tileToPixel(npc.gridX, npc.gridY);
         const characterId = characterIdForActor(npc);
-        const sprite = addCharacterSprite(sceneRef, p.x, p.y, characterId, 'down', 2, 9);
+        const sprite = npc.hideBody ? null : addCharacterSprite(sceneRef, p.x, p.y, characterId, 'down', 2, 9);
         const npcObjects = [];
         if (sprite) {
           playCharacterWalk(sprite, characterId, 'down');
           npcObjects.push(sprite);
-        } else {
+        } else if (!npc.hideBody) {
           const rect = sceneRef.add.rectangle(p.x, p.y, TILE_SIZE - 6, TILE_SIZE - 6, npc.color);
           const letter = sceneRef.add.text(p.x, p.y, npc.letter, {
             fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#1a1410'
           }).setOrigin(0.5);
           npcObjects.push(rect, letter);
         }
-        const tag = sceneRef.add.text(p.x, p.y + TILE_SIZE / 2 + 8, npc.name, {
+        const tag = sceneRef.add.text(p.x + (npc.labelOffsetX || 0), p.y + TILE_SIZE / 2 + 8 + (npc.labelOffsetY || 0), npc.name, {
           fontFamily: 'VT323', fontSize: '13px', color: '#1a1410',
           stroke: '#ffffff', strokeThickness: 2
         }).setOrigin(0.5).setDepth(9);
@@ -3047,9 +3143,15 @@ import Phaser from 'phaser';
     // ============================================================
     //  INTERACTION
     // ============================================================
+    function npcOccupiesInteractionTile(npc, x, y) {
+      if (npc.gridX === x && npc.gridY === y) return true;
+      if (!npc.interactionTiles) return false;
+      return npc.interactionTiles.some(t => t.x === x && t.y === y);
+    }
+
     function tryInteract() {
       const front = getFrontTile();
-      const npc = visibleNpcs().find(n => n.gridX === front.x && n.gridY === front.y);
+      const npc = visibleNpcs().find(n => npcOccupiesInteractionTile(n, front.x, front.y));
       if (!npc) return;
       if (npc.menuOptions && npc.menuOptions.length > 0) { showNpcMenu(npc); return; }
       startDialogue(npc, pickConversation(npc));
@@ -3254,7 +3356,7 @@ import Phaser from 'phaser';
 
     function updateHint() {
       const front = getFrontTile();
-      const facing = visibleNpcs().find(n => n.gridX === front.x && n.gridY === front.y);
+      const facing = visibleNpcs().find(n => npcOccupiesInteractionTile(n, front.x, front.y));
       if (facing) {
         const verb = facing.isBoss ? 'challenge'
                    : facing.isOfficeSign ? 'enter'
@@ -3269,7 +3371,7 @@ import Phaser from 'phaser';
     function canWalkTo(x, y) {
       const m = maps[currentMapId];
       if (x < 0 || y < 0 || y >= m.layout.length || x >= m.layout[0].length) return false;
-      const def = m.tileDefs[m.layout[y][x]];
+      const def = resolveMapTileDef(m, x, y);
       if (!def.walkable) return false;
       for (const n of visibleNpcs()) if (n.gridX === x && n.gridY === y) return false;
       return true;
