@@ -1,4 +1,10 @@
 import Phaser from 'phaser';
+import {
+  preloadAudio, unlockAudio,
+  playBgm, stopBgm, pauseBgm, resumeBgm, playSfx,
+  bgmForMap,
+  getAudioPrefs, setAudioPref, toggleMute,
+} from './audio.js';
 
     // ============================================================
     //  PHASE 3 — THE WORLD GETS BIGGER
@@ -219,7 +225,7 @@ import Phaser from 'phaser';
       { id: 'wife', name: 'Wife', file: 'wife.png' },
       { id: 'fu_chan', name: 'Fu Chan', file: 'fu_chan.png' },
       { id: 'mion', name: 'Mion', file: 'mion.png' },
-      { id: 'takeda', name: 'Takeda', file: 'takeda.png' },
+      { id: 'takeda', name: 'Take', file: 'takeda.png' },
       { id: 'shiori', name: 'Shiori', file: 'shiori.png' },
       { id: 'the_director', name: 'The Director', file: 'the_director.png' },
       { id: 'the_vp', name: 'The VP', file: 'the_vp.png' },
@@ -414,7 +420,7 @@ import Phaser from 'phaser';
               { stage: 0, lines: ["Fu Chan threw up on your notebook.", "...He's reviewing your work, I think."] },
               { stage: 0, lines: ["You okay?", "...Okay. Just checking."] },
               { stage: 0, lines: ["Anthropic, huh.", "Wild how fast May 2026 got here.", "Proud of you. Now eat something."] },
-              { stage: 0, lines: ["Going out for a walk?", "Say hi to Takeda for me."] },
+              { stage: 0, lines: ["Going out for a walk?", "Say hi to Take for me."] },
               // Stage 1 — Crossing Over (3 early bosses down, mid-process)
               { stage: 1, lines: ["You came home late again.", "Coffee's still warm if you want it.", "I left it on."] },
               { stage: 1, lines: ["How'd it go today?", "...Okay. You don't have to talk about it.", "Just glad you're home."] },
@@ -544,7 +550,7 @@ import Phaser from 'phaser';
         ],
         npcs: [
           {
-            name: 'Takeda', letter: 'T', gridX: 11, gridY: 9, color: 0x9b6a8c,
+            name: 'Take', letter: 'T', gridX: 11, gridY: 9, color: 0x9b6a8c,
             gratitudeReward: 3,
             menuOptions: [
               { label: 'Talk', action: 'talk' },
@@ -552,29 +558,29 @@ import Phaser from 'phaser';
             ],
             conversations: [
               // Stage 0 — Salesforce era, easy neighborly small talk
-              { stage: 0, lines: ["Takeda: 'Jay! Hisashiburi.'", "'How's the wife?'", "'Tell her I said hi.'"] },
-              { stage: 0, lines: ["Takeda: 'How's Salesforce treating you?'", "'Heard Sales Cloud had a strong quarter.'", "'You guys are doing well.'"] },
-              { stage: 0, lines: ["Takeda: 'Sales team recruiting, right?'", "'Tough role. Moving targets every quarter.'", "'You're built for it.'"] },
-              { stage: 0, lines: ["Takeda: 'You look tired, man.'", "'Eat something. Sleep early.'", "'Your body's gotta last the whole career, not just the quarter.'"] },
-              { stage: 0, lines: ["Takeda: 'Beautiful day, isn't it?'", "'Sometimes I just stand out here and breathe.'", "'You should try it.'"] },
-              { stage: 0, lines: ["Takeda: 'How's Mion doing?'", "'My kids didn't sleep through the night till age four.'", "'Solidarity, brother.'"] },
-              { stage: 0, lines: ["Takeda: 'Sales hiring is wild right now, huh?'", "'AEs jumping ship every six months.'", "'Hang in there.'"] },
-              // Stage 1 — Crossing Over (Takeda notices, doesn't know the details yet)
-              { stage: 1, lines: ["Takeda: 'You've been busy, huh?'", "'Coming home later. Different briefcase.'", "'...None of my business though.'"] },
-              { stage: 1, lines: ["Takeda: 'How's the sales hiring scene?'", "'Still wild?'", "He glances at you like he knows something's up."] },
-              { stage: 1, lines: ["Takeda: 'Take a real day off, man.'", "'Whatever you're chasing isn't going anywhere.'"] },
-              { stage: 1, lines: ["Takeda: 'Saw your wife at the conbini.'", "'She looks tired too.'", "'Whatever it is, take care of each other.'"] },
+              { stage: 0, lines: ["Take: 'Jay! Hisashiburi.'", "'How's the wife?'", "'Tell her I said hi.'"] },
+              { stage: 0, lines: ["Take: 'How's Salesforce treating you?'", "'Heard Sales Cloud had a strong quarter.'", "'You guys are doing well.'"] },
+              { stage: 0, lines: ["Take: 'Sales team recruiting, right?'", "'Tough role. Moving targets every quarter.'", "'You're built for it.'"] },
+              { stage: 0, lines: ["Take: 'You look tired, man.'", "'Eat something. Sleep early.'", "'Your body's gotta last the whole career, not just the quarter.'"] },
+              { stage: 0, lines: ["Take: 'Beautiful day, isn't it?'", "'Sometimes I just stand out here and breathe.'", "'You should try it.'"] },
+              { stage: 0, lines: ["Take: 'How's Mion doing?'", "'My kids didn't sleep through the night till age four.'", "'Solidarity, brother.'"] },
+              { stage: 0, lines: ["Take: 'Sales hiring is wild right now, huh?'", "'AEs jumping ship every six months.'", "'Hang in there.'"] },
+              // Stage 1 — Crossing Over (Take notices, doesn't know the details yet)
+              { stage: 1, lines: ["Take: 'You've been busy, huh?'", "'Coming home later. Different briefcase.'", "'...None of my business though.'"] },
+              { stage: 1, lines: ["Take: 'How's the sales hiring scene?'", "'Still wild?'", "He glances at you like he knows something's up."] },
+              { stage: 1, lines: ["Take: 'Take a real day off, man.'", "'Whatever you're chasing isn't going anywhere.'"] },
+              { stage: 1, lines: ["Take: 'Saw your wife at the conbini.'", "'She looks tired too.'", "'Whatever it is, take care of each other.'"] },
               // Stage 2 — Anthropic offer secured (Jay is leaving Salesforce)
-              { stage: 2, lines: ["Takeda: 'So... it's official?'", "'Anthropic, huh.'", "He's smiling, but his eyes are doing something else."] },
-              { stage: 2, lines: ["Takeda: 'Gonna miss seeing you out here, Jay.'", "'Coffee at my place before you move?'", "'Don't be a stranger.'"] },
-              { stage: 2, lines: ["Takeda: 'You earned this, man.'", "'Saw it coming from a mile away.'", "'Go change the world a little.'"] },
-              { stage: 2, lines: ["Takeda: 'Keep in touch, yeah?'", "'LINE, email, whatever works.'", "'Real friends don't need much.'"] },
-              { stage: 2, lines: ["Takeda: 'The wife says we should do dinner before you move.'", "'Don't argue. Just say yes.'"] },
-              // Stage 3 — Departure (Takeda watches Jay leave for real)
-              { stage: 3, lines: ["Takeda: 'So it's tomorrow, huh.'", "'I'll watch your place. Plants. Mail. The usual.'", "'Go change something out there.'"] },
-              { stage: 3, lines: ["Takeda: 'You know what's funny?'", "'I always knew you'd leave.'", "'Just didn't think it'd feel like this.'"] },
-              { stage: 3, lines: ["Takeda: 'Send pictures from SF.'", "'The good ones. Not the curated ones.'", "'I want to see what your real life looks like.'"] },
-              { stage: 3, lines: ["Takeda: 'Don't be a stranger, Jay-san.'", "He grips your shoulder. Holds it a second longer than usual.", "'Now go catch your flight.'"] },
+              { stage: 2, lines: ["Take: 'So... it's official?'", "'Anthropic, huh.'", "He's smiling, but his eyes are doing something else."] },
+              { stage: 2, lines: ["Take: 'Gonna miss seeing you out here, Jay.'", "'Coffee at my place before you move?'", "'Don't be a stranger.'"] },
+              { stage: 2, lines: ["Take: 'You earned this, man.'", "'Saw it coming from a mile away.'", "'Go change the world a little.'"] },
+              { stage: 2, lines: ["Take: 'Keep in touch, yeah?'", "'LINE, email, whatever works.'", "'Real friends don't need much.'"] },
+              { stage: 2, lines: ["Take: 'The wife says we should do dinner before you move.'", "'Don't argue. Just say yes.'"] },
+              // Stage 3 — Departure (Take watches Jay leave for real)
+              { stage: 3, lines: ["Take: 'So it's tomorrow, huh.'", "'I'll watch your place. Plants. Mail. The usual.'", "'Go change something out there.'"] },
+              { stage: 3, lines: ["Take: 'You know what's funny?'", "'I always knew you'd leave.'", "'Just didn't think it'd feel like this.'"] },
+              { stage: 3, lines: ["Take: 'Send pictures from SF.'", "'The good ones. Not the curated ones.'", "'I want to see what your real life looks like.'"] },
+              { stage: 3, lines: ["Take: 'Don't be a stranger, Jay-san.'", "He grips your shoulder. Holds it a second longer than usual.", "'Now go catch your flight.'"] },
             ],
           },
           // ---- Office signs (interact to enter) ----
@@ -934,8 +940,8 @@ import Phaser from 'phaser';
         playerStats.mp = playerStats.maxMp;
       }
       if (sceneRef) {
-        if (leveledUp)     showLevelUpBanner(newLevel);
-        if (stageAdvanced) { showStageUnlockBanner(newStage); saveGame(); }
+        if (leveledUp)     { playSfx('level_up'); showLevelUpBanner(newLevel); }
+        if (stageAdvanced) { playSfx('stage_unlock'); showStageUnlockBanner(newStage); saveGame(); }
       }
     }
 
@@ -1009,6 +1015,10 @@ import Phaser from 'phaser';
     let shopElements = [], shopGratitudeText, shopStatusText, shopItemRows = [];
     let charElements = [], charTabTexts = {}, charBodyContainer;
     let pauseElements = [];
+    let audioPanelElements = [];
+    let pauseSubMode = 'main';            // 'main' | 'audio'
+    let pauseTitleText, pauseOptionsText, pauseFooterText;
+    let audioOptionsText, audioFooterText;
 
     // Character screen tabs + state
     let characterTab = 'character';            // 'character' | 'inventory' | 'magic'
@@ -1130,6 +1140,9 @@ import Phaser from 'phaser';
 
     function flashSavedBanner(text) {
       if (!sceneRef) return;
+      // Play save chime only for the actual "saved" banner — skip post-battle
+      // and informational variants so it doesn't fire on every notification.
+      if (text === 'Game saved' || text === 'Save loaded') playSfx('save');
       const b = sceneRef.add.text(
         VIEWPORT_W / 2, HUD_H + 60, text || 'Game saved',
         { fontFamily: '"Press Start 2P"', fontSize: '11px', color: '#ffd966', stroke: '#000', strokeThickness: 4 }
@@ -1147,6 +1160,7 @@ import Phaser from 'phaser';
       key: 'menu',
       preload: function () {
         preloadCharacterAssets(this);
+        preloadAudio(this);
       },
       create: function () {
         activeSceneKey = 'menu';
@@ -1223,16 +1237,22 @@ import Phaser from 'phaser';
         const key2 = kb.addKey(Phaser.Input.Keyboard.KeyCodes.TWO);
         let newGameConfirmPending = false;
         function menuChoose(n) {
+          // First user input — unlock WebAudio and kick title BGM.
+          unlockAudio(s);
+          playBgm('title');
           if (n === 1) {
             if (hasExisting && !newGameConfirmPending) {
               newGameConfirmPending = true;
               newGameText.setText('1. PRESS 1 AGAIN TO OVERWRITE');
               newGameText.setColor('#ff9933');
+              playSfx('ui_cancel');
               return;
             }
+            playSfx('ui_confirm');
             s.scene.start('disclaimer');
           } else if (n === 2) {
-            if (!hasExisting) return;
+            if (!hasExisting) { playSfx('ui_cancel'); return; }
+            playSfx('ui_confirm');
             s.scene.start('game', { mode: 'continue' });
           }
         }
@@ -1247,10 +1267,17 @@ import Phaser from 'phaser';
 
     const DisclaimerScene = {
       key: 'disclaimer',
+      preload: function () {
+        preloadAudio(this);
+      },
       create: function () {
         activeSceneKey = 'menu';
         const s = this;
         const cx = VIEWPORT_W / 2;
+        // Title BGM may have been mid-fade when MenuScene shut down; this snaps
+        // the existing sound (created in MenuScene, still alive on the global
+        // sound manager) to its target mix in DisclaimerScene's tween world.
+        playBgm('title');
         s.add.rectangle(VIEWPORT_W / 2, TOTAL_H / 2, VIEWPORT_W, TOTAL_H, 0x1a1410);
         s.add.rectangle(cx, TOTAL_H / 2 + 8, VIEWPORT_W - 64, 330, 0x211813)
           .setStrokeStyle(3, 0xd4a574);
@@ -1277,6 +1304,7 @@ import Phaser from 'phaser';
         function begin() {
           if (started) return;
           started = true;
+          playSfx('ui_confirm');
           s.cameras.main.fadeOut(220, 26, 20, 16);
           s.time.delayedCall(240, () => s.scene.start('game', { mode: 'new' }));
         }
@@ -1295,6 +1323,7 @@ import Phaser from 'phaser';
       preload: function () {
         preloadCharacterAssets(this);
         preloadTileAssets(this);
+        preloadAudio(this);
       },
       create: function (data) {
         sceneRef = this;
@@ -1349,6 +1378,10 @@ import Phaser from 'phaser';
         updateHud();
         updateLocationLabel();
 
+        // Start the right BGM for the current map. Safe to call even before
+        // unlock; the audio module defers until first input is acknowledged.
+        playBgm(bgmForMap(currentMapId));
+
         if (mode === 'continue') {
           this.cameras.main.fadeFrom(220, 26, 20, 16);
           this.time.delayedCall(240, () => flashSavedBanner('Save loaded'));
@@ -1387,6 +1420,7 @@ import Phaser from 'phaser';
         playerGridX = tx; playerGridY = ty;
         const p = tileToPixel(tx, ty);
         playCharacterWalk(player, 'jay', playerFacing);
+        playSfx('footstep');
         this.tweens.add({
           targets: [player, playerLabel],
           x: p.x, y: p.y,
@@ -1407,6 +1441,7 @@ import Phaser from 'phaser';
       key: 'battle',
       preload: function () {
         preloadCharacterAssets(this);
+        preloadAudio(this);
       },
       create: function (data) {
         const scene = this;
@@ -1414,6 +1449,9 @@ import Phaser from 'phaser';
         touchDir = null;  // no movement in battle
         const boss = bosses[data.bossId];
         if (!boss) { scene.scene.start('game', { mode: 'resume' }); return; }
+
+        // Battle BGM — Anthropic final round gets the climactic track.
+        playBgm(boss.category === 'anthropic' ? 'battle_final' : 'battle_normal');
 
         // ---- Battle state (scene-local) ----
         const battle = {
@@ -1607,6 +1645,7 @@ import Phaser from 'phaser';
           setMainMenuVisible(false);
           const dmg = calcPlayerAttack();
           const flavor = PLAYER_ATTACK_LINES[Math.floor(Math.random() * PLAYER_ATTACK_LINES.length)];
+          playSfx('hit_enemy');
           showLog(flavor + ' ' + dmg + ' damage!', () => {
             applyEnemyDamage(dmg, () => afterPlayerAction());
           });
@@ -1685,6 +1724,7 @@ import Phaser from 'phaser';
           refreshHud();
           clearSubMenu();
           const dmg = calcSkillDamage(skillId);
+          playSfx('skill_cast');
           showLog('Jay casts ' + sk.name + '! ' + dmg + ' magic damage!', () => {
             applyEnemyDamage(dmg, () => afterPlayerAction());
           });
@@ -1707,6 +1747,7 @@ import Phaser from 'phaser';
           if (inventory[itemId] <= 0) delete inventory[itemId];
           refreshHud();
           clearSubMenu();
+          playSfx('potion_use');
           showLog('Used ' + it.name + '. ' + healed + '.', () => afterPlayerAction());
         }
 
@@ -1722,8 +1763,10 @@ import Phaser from 'phaser';
           if (success) {
             battle.ended = true;
             battle.result = 'fled';
+            playSfx('exit');
             showLog('You break eye contact and walk away.', () => endBattle());
           } else {
+            playSfx('miss');
             showLog(boss.name + ' steps into your path. Couldn\'t escape!', () => enemyTurn());
           }
         }
@@ -1759,6 +1802,7 @@ import Phaser from 'phaser';
           const dmgPart = blocked > 0
             ? dmg + ' damage. (DEF blocked ' + blocked + ')'
             : dmg + ' damage!';
+          playSfx('hit_player');
           showLog(taunt + ' ' + dmgPart, () => {
             applyPlayerDamage(dmg, () => {
               if (playerStats.hp <= 0) playerLost();
@@ -1772,6 +1816,8 @@ import Phaser from 'phaser';
           const xpReward = battle.boss.xpReward;
           const gratReward = battle.boss.gratitudeReward || 0;
           const defeatLine = battle.boss.defeatLines[Math.floor(Math.random() * battle.boss.defeatLines.length)];
+          playSfx('ko');
+          playBgm('victory');
           showLog(battle.boss.name + ' is defeated. ' + defeatLine, () => {
             const rewardLine = gratReward > 0
               ? 'Jay earned ' + xpReward + ' XP and ' + gratReward + ' \u2665.'
@@ -1790,6 +1836,7 @@ import Phaser from 'phaser';
         function playerLost() {
           battle.ended = true;
           battle.result = 'lost';
+          playSfx('ko');
           showLog('Jay blacked out from exhaustion\u2026', () => {
             showLog('(He\'ll wake up at home, half restored.)', () => endBattle());
           });
@@ -2075,6 +2122,7 @@ import Phaser from 'phaser';
 
     function switchMap(mapId, spawnX, spawnY, facing) {
       isTransitioning = true;
+      playSfx('exit');
       sceneRef.cameras.main.fadeOut(220, 26, 20, 16);
 
       sceneRef.time.delayedCall(240, () => {
@@ -2089,6 +2137,9 @@ import Phaser from 'phaser';
         playerGridX = spawnX;
         playerGridY = spawnY;
         playerFacing = facing || 'down';
+
+        // Swap to the new zone's BGM (crossfaded by the audio module).
+        playBgm(bgmForMap(currentMapId));
 
         // Rebuild visuals for new map
         createMap();
@@ -2188,6 +2239,27 @@ import Phaser from 'phaser';
           activeTileObjects.push(tile);
         }
       }
+      if (currentMapId === 'town' && storyStage < 1) addAnthropicLockedSign();
+    }
+
+    function addAnthropicLockedSign() {
+      const left = 16 * TILE_SIZE;
+      const top = MAP_OFFSET_Y + TILE_SIZE;
+      const w = TILE_SIZE * 4;
+      const h = TILE_SIZE * 2;
+      const cx = left + w / 2;
+      const cy = top + h / 2;
+      const panel = sceneRef.add.rectangle(cx, cy, w - 4, h - 4, 0x5c3b26)
+        .setStrokeStyle(3, 0xffd966).setDepth(6);
+      const topTrim = sceneRef.add.rectangle(cx, top + 7, w - 12, 6, 0x8b5a35).setDepth(7);
+      const postL = sceneRef.add.rectangle(left + 20, top + h - 5, 5, 14, 0x3a2417).setDepth(5);
+      const postR = sceneRef.add.rectangle(left + w - 20, top + h - 5, 5, 14, 0x3a2417).setDepth(5);
+      const text = sceneRef.add.text(cx, cy + 2, 'CHECK\nSALESFORCE\nFIRST', {
+        fontFamily: '"Press Start 2P"', fontSize: '8px', color: '#ffffff',
+        align: 'center', lineSpacing: 5,
+        stroke: '#1a1410', strokeThickness: 3,
+      }).setOrigin(0.5).setDepth(8);
+      activeTileObjects.push(panel, topTrim, postL, postR, text);
     }
 
     function resolveMapTileDef(m, x, y) {
@@ -2470,6 +2542,7 @@ import Phaser from 'phaser';
       inventorySelectedItem = null;
       charElements.forEach(e => e.setVisible(true));
       refreshCharacterUi();
+      playSfx('menu_open');
     }
 
     function refreshCharacterUi() {
@@ -2819,11 +2892,14 @@ import Phaser from 'phaser';
           const gain = Math.min(it.amount, playerStats.maxMp - playerStats.mp);
           playerStats.mp += gain;
         }
+        playSfx('potion_use');
         discardItem(inventorySelectedItem);
         updateHud();
       } else if (action === 'equip') {
+        playSfx('ui_confirm');
         equipItem(inventorySelectedItem);
       } else if (action === 'discard') {
+        playSfx('ui_cancel');
         discardItem(inventorySelectedItem);
       }
       inventorySelectedItem = null;
@@ -2844,43 +2920,126 @@ import Phaser from 'phaser';
     // ============================================================
     function createPauseUi() {
       const s = sceneRef;
-      const W = 380, H = 280;
+      const W = 420, H = 300;
       const cx = VIEWPORT_W / 2, cy = HUD_H + VIEWPORT_MAP_H / 2;
+
+      // Shared dim + box — visible whenever the pause modal is up.
       const dim = s.add.rectangle(VIEWPORT_W / 2, TOTAL_H / 2, VIEWPORT_W, TOTAL_H, 0x000000, 0.55);
       const box = s.add.rectangle(cx, cy, W, H, 0x1a1410, 0.97).setStrokeStyle(3, 0xffd966);
-      const title = s.add.text(cx, cy - H / 2 + 24, 'PAUSED', {
+
+      // ----- Main pause panel -----
+      pauseTitleText = s.add.text(cx, cy - H / 2 + 24, 'PAUSED', {
         fontFamily: '"Press Start 2P"', fontSize: '14px', color: '#ffd966',
       }).setOrigin(0.5);
-      const options = s.add.text(cx, cy - 4,
-        '1. Resume\n2. Save Game\n3. Return to Title',
-        { fontFamily: 'VT323', fontSize: '24px', color: '#ffffff', align: 'center', lineSpacing: 8 }
-      ).setOrigin(0.5);
-      const footer = s.add.text(cx, cy + H / 2 - 22, 'Press 1-3   ·   Esc to resume', {
+      pauseOptionsText = s.add.text(cx, cy - 4, '', {
+        fontFamily: 'VT323', fontSize: '24px', color: '#ffffff', align: 'center', lineSpacing: 8,
+      }).setOrigin(0.5);
+      pauseFooterText = s.add.text(cx, cy + H / 2 - 22, '', {
         fontFamily: 'VT323', fontSize: '16px', color: '#8b6f47',
       }).setOrigin(0.5);
-      pauseElements = [dim, box, title, options, footer];
-      pauseElements.forEach(e => e.setVisible(false).setScrollFactor(0).setDepth(250));
+      pauseElements = [dim, box, pauseTitleText, pauseOptionsText, pauseFooterText];
+
+      // ----- Audio sub-panel (separate text, shared dim+box) -----
+      const audioTitle = s.add.text(cx, cy - H / 2 + 24, 'AUDIO', {
+        fontFamily: '"Press Start 2P"', fontSize: '14px', color: '#ffd966',
+      }).setOrigin(0.5);
+      audioOptionsText = s.add.text(cx, cy - 4, '', {
+        fontFamily: 'VT323', fontSize: '22px', color: '#ffffff', align: 'left', lineSpacing: 10,
+      }).setOrigin(0.5);
+      audioFooterText = s.add.text(cx, cy + H / 2 - 22, '', {
+        fontFamily: 'VT323', fontSize: '15px', color: '#8b6f47', align: 'center',
+      }).setOrigin(0.5);
+      audioPanelElements = [audioTitle, audioOptionsText, audioFooterText];
+
+      [...pauseElements, ...audioPanelElements].forEach(e =>
+        e.setVisible(false).setScrollFactor(0).setDepth(250)
+      );
+    }
+
+    function bar10(v) {
+      // 0..1 → 10-segment bar like [#######...]
+      const filled = Math.round(Math.max(0, Math.min(1, v)) * 10);
+      return '[' + '#'.repeat(filled) + '.'.repeat(10 - filled) + ']';
+    }
+
+    function renderPausePanel() {
+      if (pauseSubMode === 'main') {
+        pauseTitleText.setText('PAUSED');
+        pauseOptionsText.setText('1. Resume\n2. Save Game\n3. Audio\n4. Return to Title');
+        pauseFooterText.setText('Press 1-4   ·   Esc to resume');
+        pauseElements.forEach(e => e.setVisible(true));
+        audioPanelElements.forEach(e => e.setVisible(false));
+      } else {
+        // Audio sub-mode — dim+box stay, swap labels.
+        pauseTitleText.setVisible(false);
+        pauseOptionsText.setVisible(false);
+        pauseFooterText.setVisible(false);
+        const p = getAudioPrefs();
+        const muteStr = p.muted ? 'ON' : 'OFF';
+        audioOptionsText.setText(
+          '1. Music  ' + bar10(p.music)  + '  ' + Math.round(p.music * 100) + '%\n' +
+          '2. SFX    ' + bar10(p.sfx)    + '  ' + Math.round(p.sfx * 100) + '%\n' +
+          '3. Master ' + bar10(p.master) + '  ' + Math.round(p.master * 100) + '%\n' +
+          '4. Mute   [ ' + muteStr + ' ]\n' +
+          '5. Back'
+        );
+        audioFooterText.setText('1-3 cycles volume   ·   4 toggles mute   ·   5 back');
+        audioPanelElements.forEach(e => e.setVisible(true));
+      }
+    }
+
+    function cycleVolume(v) {
+      // Cycle 0 → 0.2 → 0.4 → 0.6 → 0.8 → 1.0 → 0
+      const steps = [0, 0.2, 0.4, 0.6, 0.8, 1.0];
+      const cur = steps.reduce((best, s) =>
+        Math.abs(s - v) < Math.abs(best - v) ? s : best, steps[0]);
+      const idx = steps.indexOf(cur);
+      return steps[(idx + 1) % steps.length];
     }
 
     function showPause() {
       gameMode = 'pause';
+      pauseSubMode = 'main';
       hintText.setText('');
+      renderPausePanel();
       pauseElements.forEach(e => e.setVisible(true));
+      audioPanelElements.forEach(e => e.setVisible(false));
+      playSfx('menu_open');
+      pauseBgm();
     }
 
     function hidePause() {
       pauseElements.forEach(e => e.setVisible(false));
+      audioPanelElements.forEach(e => e.setVisible(false));
       gameMode = 'overworld';
+      pauseSubMode = 'main';
       updateHint();
+      playSfx('ui_cancel');
+      resumeBgm();
     }
 
     function handlePauseChoice(n) {
+      if (pauseSubMode === 'audio') {
+        const p = getAudioPrefs();
+        if (n === 1)      { setAudioPref('music',  cycleVolume(p.music));  playSfx('ui_select'); }
+        else if (n === 2) { setAudioPref('sfx',    cycleVolume(p.sfx));    playSfx('ui_select'); }
+        else if (n === 3) { setAudioPref('master', cycleVolume(p.master)); playSfx('ui_select'); }
+        else if (n === 4) { toggleMute(); playSfx('ui_select'); }
+        else if (n === 5) { pauseSubMode = 'main'; playSfx('ui_cancel'); }
+        renderPausePanel();
+        return;
+      }
+      // Main pause mode
       if (n === 1) {
         hidePause();
       } else if (n === 2) {
         const ok = saveGame();
         flashSavedBanner(ok ? 'Game saved' : 'Save failed');
       } else if (n === 3) {
+        pauseSubMode = 'audio';
+        renderPausePanel();
+        playSfx('ui_select');
+      } else if (n === 4) {
         returnToTitle();
       }
     }
@@ -2888,6 +3047,8 @@ import Phaser from 'phaser';
     function returnToTitle() {
       // Wipe modal state, fade out, stop this scene, start menu fresh
       pauseElements.forEach(e => e.setVisible(false));
+      audioPanelElements.forEach(e => e.setVisible(false));
+      playBgm('title');
       sceneRef.cameras.main.fadeOut(220, 26, 20, 16);
       sceneRef.time.delayedCall(240, () => {
         sceneRef.scene.start('menu');
@@ -2902,6 +3063,7 @@ import Phaser from 'phaser';
     function runCreditsSequence() {
       gameMode = 'dialogue';      // blocks overworld input during credits
       isTransitioning = true;     // also blocks movement/exits
+      playBgm('credits');
 
       const lines = [
         'Tokyo Narita International Airport.',
@@ -2914,7 +3076,7 @@ import Phaser from 'phaser';
         '',
         'He thinks about Wife.',
         'About Mion. About Fu Chan.',
-        'About Takeda, who said go.',
+        'About Take, who said go.',
         'About Shiori, who said come back.',
         '',
         'About every Salesforce loop that built him.',
@@ -2962,6 +3124,7 @@ import Phaser from 'phaser';
       let idx = 0;
 
       function fadeOutToMenu() {
+        playBgm('title');
         sceneRef.tweens.add({
           targets: [txt, overlay], alpha: 0, duration: 900,
           onComplete: () => {
@@ -3165,6 +3328,7 @@ import Phaser from 'phaser';
       menuChoiceText.setText(npc.menuOptions.map((o, i) => (i + 1) + '. ' + o.label).join('\n'));
       menuFooterText.setText('Press 1-' + npc.menuOptions.length + '   ·   B to leave');
       menuElements.forEach(e => e.setVisible(true));
+      playSfx('menu_open');
     }
 
     function handleMenuChoice(n) {
@@ -3230,12 +3394,14 @@ import Phaser from 'phaser';
       if (n < 1 || n > shopOrder.length) return;
       const id = shopOrder[n - 1]; const item = items[id];
       if (playerStats.gratitude < item.price) {
+        playSfx('ui_cancel');
         setShopStatus('Not enough \u2665 \u2014 need ' + item.price + ', have ' + playerStats.gratitude, '#c23b22');
         return;
       }
       playerStats.gratitude -= item.price;
       inventory[id] = (inventory[id] || 0) + 1;
       updateHud(); refreshShopUi();
+      playSfx('shop_buy');
       setShopStatus('Bought ' + item.name + '! (added to inventory)', TIER_COLORS[item.tier]);
     }
 
@@ -3257,6 +3423,7 @@ import Phaser from 'phaser';
       isTyping = true; fullText = text;
       dialogueText.setText(''); dialogueIndicator.setVisible(false);
       if (typeTimer) { typeTimer.remove(); typeTimer = null; }
+      if (text && text.length > 0) playSfx('dialogue_blip');
       let i = 0;
       const myTimer = sceneRef.time.addEvent({
         delay: 22, loop: true,

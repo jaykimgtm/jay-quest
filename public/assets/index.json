@@ -5,7 +5,7 @@
     { "id": "wife", "name": "Wife", "file": "characters/wife.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 1, "left": 4, "right": 7, "up": 10 }, "walkFrames": { "down": [0, 1, 2, 1], "left": [3, 4, 5, 4], "right": [6, 7, 8, 7], "up": [9, 10, 11, 10] } },
     { "id": "fu_chan", "name": "Fu Chan", "file": "characters/fu_chan.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 1, "left": 4, "right": 7, "up": 10 }, "walkFrames": { "down": [0, 1, 2, 1], "left": [3, 4, 5, 4], "right": [6, 7, 8, 7], "up": [9, 10, 11, 10] } },
     { "id": "mion", "name": "Mion", "file": "characters/mion.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 1, "left": 4, "right": 7, "up": 10 }, "walkFrames": { "down": [0, 1, 2, 1], "left": [3, 4, 5, 4], "right": [6, 7, 8, 7], "up": [9, 10, 11, 10] } },
-    { "id": "takeda", "name": "Takeda", "file": "characters/takeda.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 1, "left": 4, "right": 7, "up": 10 }, "walkFrames": { "down": [0, 1, 2, 1], "left": [3, 4, 5, 4], "right": [6, 7, 8, 7], "up": [9, 10, 11, 10] } },
+    { "id": "takeda", "name": "Take", "file": "characters/takeda.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 1, "left": 4, "right": 7, "up": 10 }, "walkFrames": { "down": [0, 1, 2, 1], "left": [3, 4, 5, 4], "right": [6, 7, 8, 7], "up": [9, 10, 11, 10] } },
     { "id": "shiori", "name": "Shiori", "file": "characters/shiori.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 1, "left": 4, "right": 7, "up": 10 }, "walkFrames": { "down": [0, 1, 2, 1], "left": [3, 4, 5, 4], "right": [6, 7, 8, 7], "up": [9, 10, 11, 10] } },
     { "id": "the_director", "name": "The Director", "file": "characters/the_director.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 1, "left": 4, "right": 7, "up": 10 }, "walkFrames": { "down": [0, 1, 2, 1], "left": [3, 4, 5, 4], "right": [6, 7, 8, 7], "up": [9, 10, 11, 10] } },
     { "id": "the_vp", "name": "The VP", "file": "characters/the_vp.png", "frameWidth": 16, "frameHeight": 16, "frames": { "down": 1, "left": 4, "right": 7, "up": 10 }, "walkFrames": { "down": [0, 1, 2, 1], "left": [3, 4, 5, 4], "right": [6, 7, 8, 7], "up": [9, 10, 11, 10] } },
@@ -60,6 +60,35 @@
     { "id": "airport_entry", "file": "tiles/airport_entry.png", "width": 32, "height": 32 }
   ],
   "backgrounds": [],
-  "bgm": [],
-  "sfx": []
+  "bgm": [
+    { "id": "title",             "file": "bgm/title.mp3",             "loop": true,  "volume": 0.55, "fadeMs": 800 },
+    { "id": "house",             "file": "bgm/house.mp3",             "loop": true,  "volume": 0.45, "fadeMs": 800 },
+    { "id": "town",              "file": "bgm/town.mp3",              "loop": true,  "volume": 0.50, "fadeMs": 800 },
+    { "id": "salesforce_office", "file": "bgm/salesforce_office.mp3", "loop": true,  "volume": 0.45, "fadeMs": 800 },
+    { "id": "anthropic_office",  "file": "bgm/anthropic_office.mp3",  "loop": true,  "volume": 0.50, "fadeMs": 800 },
+    { "id": "airport",           "file": "bgm/airport.mp3",           "loop": true,  "volume": 0.45, "fadeMs": 1200 },
+    { "id": "battle_normal",     "file": "bgm/battle_normal.mp3",     "loop": true,  "volume": 0.60, "fadeMs": 250 },
+    { "id": "battle_final",      "file": "bgm/battle_final.mp3",      "loop": true,  "volume": 0.65, "fadeMs": 400 },
+    { "id": "victory",           "file": "bgm/victory.mp3",           "loop": false, "volume": 0.70, "fadeMs": 150 },
+    { "id": "credits",           "file": "bgm/credits.mp3",           "loop": true,  "volume": 0.55, "fadeMs": 1500 }
+  ],
+  "sfx": [
+    { "id": "ui_confirm",   "file": "sfx/ui_confirm.wav",   "volume": 0.70 },
+    { "id": "ui_cancel",    "file": "sfx/ui_cancel.wav",    "volume": 0.60 },
+    { "id": "ui_select",    "file": "sfx/ui_select.wav",    "volume": 0.50 },
+    { "id": "menu_open",    "file": "sfx/menu_open.wav",    "volume": 0.60 },
+    { "id": "save",         "file": "sfx/save.wav",         "volume": 0.70 },
+    { "id": "dialogue_blip","file": "sfx/dialogue_blip.wav","volume": 0.35 },
+    { "id": "footstep",     "files": ["sfx/footstep_1.wav", "sfx/footstep_2.wav"], "volume": 0.25 },
+    { "id": "hit_player",   "file": "sfx/hit_player.wav",   "volume": 0.75 },
+    { "id": "hit_enemy",    "file": "sfx/hit_enemy.wav",    "volume": 0.75 },
+    { "id": "skill_cast",   "file": "sfx/skill_cast.wav",   "volume": 0.70 },
+    { "id": "miss",         "file": "sfx/miss.wav",         "volume": 0.55 },
+    { "id": "ko",           "file": "sfx/ko.wav",           "volume": 0.85 },
+    { "id": "level_up",     "file": "sfx/level_up.wav",     "volume": 0.85 },
+    { "id": "stage_unlock", "file": "sfx/stage_unlock.wav", "volume": 0.90 },
+    { "id": "shop_buy",     "file": "sfx/shop_buy.wav",     "volume": 0.70 },
+    { "id": "potion_use",   "file": "sfx/potion_use.wav",   "volume": 0.65 },
+    { "id": "exit",         "file": "sfx/exit.wav",         "volume": 0.50 }
+  ]
 }
