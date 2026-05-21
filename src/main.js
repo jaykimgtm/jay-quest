@@ -1160,7 +1160,11 @@ import {
       key: 'menu',
       preload: function () {
         preloadCharacterAssets(this);
-        preloadAudio(this);
+        // Intentionally skip preloadAudio here: Phaser 3.80.1's loader can hang
+        // on decodeAudioData while the AudioContext is still suspended (no user
+        // gesture yet on first paint). The title is the first scene the user
+        // sees, so loading audio here blocks the canvas from rendering at all.
+        // Audio gets preloaded in DisclaimerScene after the first keypress.
       },
       create: function () {
         activeSceneKey = 'menu';
