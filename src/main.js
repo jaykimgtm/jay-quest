@@ -149,12 +149,12 @@ const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
           '"Per my last message..."',
         ],
         defeatLines: [
-          '"...You\'re leaving? After all I\'ve done?"',
+          '"...You\'re not agreeing? After all I\'ve done?"',
           '(He never did anything.)',
         ],
       },
       difficult_colleague: {
-        id: 'difficult_colleague', name: 'Opposing Colleague', title: 'The Credit Thief',
+        id: 'difficult_colleague', name: 'Opposing Colleague', title: 'The opposer',
         category: 'salesforce', color: 0x6b3410, letter: 'D',
         hp: 60, attack: 8, xpReward: 100, gratitudeReward: 25, canRun: false,
         introLines: [
@@ -423,7 +423,7 @@ const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
               { stage: 0, lines: ["Welcome home.", "Mion drew on the wall again.", "We have modern art now."] },
               { stage: 0, lines: ["How was the prep session?", "You've been ready since round two.", "Breathe."] },
               { stage: 0, lines: ["Coffee's on the counter.", "I made the strong one.", "You earned it."] },
-              { stage: 0, lines: ["Fu Chan threw up on your notebook.", "...He's reviewing your work, I think."] },
+              { stage: 0, lines: ["Fu Chan threw up on your notebook.", "...She's reviewing your work, I think."] },
               { stage: 0, lines: ["You okay?", "...Okay. Just checking."] },
               { stage: 0, lines: ["Anthropic, huh.", "Wild how fast May 2026 got here.", "Proud of you. Now eat something."] },
               { stage: 0, lines: ["Going out for a walk?", "Say hi to Take for me."] },
@@ -459,20 +459,20 @@ const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
               { stage: 0, lines: ["Fu Chan slow-blinks at you.", "(High honor.)"] },
               { stage: 0, lines: ["Fu Chan walks across your keyboard.", "Your meeting is now cancelled."] },
               { stage: 0, lines: ["Fu Chan presents his belly.", "(Trap. Do not engage.)"] },
-              { stage: 0, lines: ["Fu Chan judges your career choices.", "He says nothing. Says everything."] },
+              { stage: 0, lines: ["Fu Chan judges your career choices.", "She says nothing. Says everything."] },
               { stage: 0, lines: ["Fu Chan demands to be fed.", "He was fed four minutes ago."] },
-              { stage: 0, lines: ["Fu Chan sits on your interview notes.", "Now they are HIS interview notes."] },
+              { stage: 0, lines: ["Fu Chan sits on your interview notes.", "Now they are HER interview notes."] },
               // Stage 1 — Crossing Over
-              { stage: 1, lines: ["Fu Chan watches the door longer when you leave.", "(Or maybe he's always done that.)"] },
+              { stage: 1, lines: ["Fu Chan watches the door longer when you leave.", "(Or maybe she's always done that.)"] },
               { stage: 1, lines: ["Fu Chan sits in your spot on the couch.", "(Holding it for you.)"] },
               { stage: 1, lines: ["Fu Chan stares at your suitcase.", "(Then at you.)", "(Then walks away.)"] },
               // Stage 2 — Anthropic Era
-              { stage: 2, lines: ["Fu Chan sits inside a cardboard box.", "(He has claimed it.)", "(It is his ship now.)"] },
-              { stage: 2, lines: ["Fu Chan slow-blinks at you.", "(He sees you.)", "(He has always seen you.)"] },
+              { stage: 2, lines: ["Fu Chan sits inside a cardboard box.", "(She has claimed it.)", "(It is her ship now.)"] },
+              { stage: 2, lines: ["Fu Chan slow-blinks at you.", "(She sees you.)", "(She has always seen you.)"] },
               { stage: 2, lines: ["Fu Chan walks across your laptop.", "...same as always.", "Some things don't change."] },
               // Stage 3 — Departure
-              { stage: 3, lines: ["Fu Chan is sitting inside the suitcase.", "(He's coming. He's decided.)", "(...He is not coming.)"] },
-              { stage: 3, lines: ["Fu Chan stares at the door for a long time.", "Then at you.", "He knows."] },
+              { stage: 3, lines: ["Fu Chan is sitting inside the suitcase.", "(She's coming. She's decided.)", "(...She is not coming.)"] },
+              { stage: 3, lines: ["Fu Chan stares at the door for a long time.", "Then at you.", "She knows."] },
             ],
           },
           {
@@ -565,8 +565,8 @@ const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
             conversations: [
               // Stage 0 — Salesforce era, easy neighborly small talk
               { stage: 0, lines: ["Take: 'Jay! Hisashiburi.'", "'How's the wife?'", "'Tell her I said hi.'"] },
-              { stage: 0, lines: ["Take: 'How's Salesforce treating you?'", "'Heard Sales Cloud had a strong quarter.'", "'You guys are doing well.'"] },
-              { stage: 0, lines: ["Take: 'Sales team recruiting, right?'", "'Tough role. Moving targets every quarter.'", "'You're built for it.'"] },
+              { stage: 0, lines: ["Take: 'How's Salesforce treating you?'", "'Sales Cloud had a strong quarter.'", "'Are team is doing well.'"] },
+              { stage: 0, lines: ["Take: 'Sales team recruiting... right?'", "'Tough role. Moving targets every quarter.'", "'You're built for it.'"] },
               { stage: 0, lines: ["Take: 'You look tired, man.'", "'Eat something. Sleep early.'", "'Your body's gotta last the whole career, not just the quarter.'"] },
               { stage: 0, lines: ["Take: 'Beautiful day, isn't it?'", "'Sometimes I just stand out here and breathe.'", "'You should try it.'"] },
               { stage: 0, lines: ["Take: 'How's Mion doing?'", "'My kids didn't sleep through the night till age four.'", "'Solidarity, brother.'"] },
@@ -575,18 +575,18 @@ const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
               { stage: 1, lines: ["Take: 'You've been busy, huh?'", "'Coming home later. Different briefcase.'", "'...None of my business though.'"] },
               { stage: 1, lines: ["Take: 'How's the sales hiring scene?'", "'Still wild?'", "He glances at you like he knows something's up."] },
               { stage: 1, lines: ["Take: 'Take a real day off, man.'", "'Whatever you're chasing isn't going anywhere.'"] },
-              { stage: 1, lines: ["Take: 'Saw your wife at the conbini.'", "'She looks tired too.'", "'Whatever it is, take care of each other.'"] },
+              { stage: 1, lines: ["Take: 'Saw your wife at work.'", "'She looks tired too.'", "'Whatever it is, take care of each other.'"] },
               // Stage 2 — Anthropic offer secured (Jay is leaving Salesforce)
               { stage: 2, lines: ["Take: 'So... it's official?'", "'Anthropic, huh.'", "He's smiling, but his eyes are doing something else."] },
-              { stage: 2, lines: ["Take: 'Gonna miss seeing you out here, Jay.'", "'Coffee at my place before you move?'", "'Don't be a stranger.'"] },
+              { stage: 2, lines: ["Take: 'Gonna miss seeing you out here, Jay.'", "'Coffee or lunch before you move?'", "'Don't be a stranger.'"] },
               { stage: 2, lines: ["Take: 'You earned this, man.'", "'Saw it coming from a mile away.'", "'Go change the world a little.'"] },
               { stage: 2, lines: ["Take: 'Keep in touch, yeah?'", "'LINE, email, whatever works.'", "'Real friends don't need much.'"] },
-              { stage: 2, lines: ["Take: 'The wife says we should do dinner before you move.'", "'Don't argue. Just say yes.'"] },
+              { stage: 2, lines: ["Take: 'We should do lunch before you move.'", "'Don't argue. Just say yes.'"] },
               // Stage 3 — Departure (Take watches Jay leave for real)
-              { stage: 3, lines: ["Take: 'So it's tomorrow, huh.'", "'I'll watch your place. Plants. Mail. The usual.'", "'Go change something out there.'"] },
+              { stage: 3, lines: ["Take: 'So it's tomorrow, huh.'", "'I'll be here. The usual.'", "'Go change something out there.'"] },
               { stage: 3, lines: ["Take: 'You know what's funny?'", "'I always knew you'd leave.'", "'Just didn't think it'd feel like this.'"] },
-              { stage: 3, lines: ["Take: 'Send pictures from SF.'", "'The good ones. Not the curated ones.'", "'I want to see what your real life looks like.'"] },
-              { stage: 3, lines: ["Take: 'Don't be a stranger, Jay-san.'", "He grips your shoulder. Holds it a second longer than usual.", "'Now go catch your flight.'"] },
+              { stage: 3, lines: ["Take: 'Let me know how you are doing.'", "'The good ones. Not the curated ones.'", "'I want to see what your real life looks like.'"] },
+              { stage: 3, lines: ["Take: 'Don't be a stranger, Jay.'", "He grips your shoulder. Holds it a second longer than usual.", "'Now go catch your flight.'"] },
             ],
           },
           // ---- Office signs (interact to enter) ----
@@ -619,7 +619,7 @@ const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
             ],
             conversations: [
               { stage: 3, lines: ["Shiori: 'I heard you're really leaving.'", "'I knew this day was coming and I still wasn't ready for it.'", "'I'm going to miss you so much, Jay.'"] },
-              { stage: 3, lines: ["Shiori: 'San Francisco is so far.'", "'Don't forget the people who knew you when.'", "She tries to smile. It mostly works."] },
+              { stage: 3, lines: ["Shiori: 'Hope we had more time to work together'", "'Don't forget the people who knew you when.'", "She tries to smile. It mostly works."] },
               { stage: 3, lines: ["Shiori: 'You were the one who told me Tokyo wasn't forever.'", "'I just didn't think you'd be the one to leave first.'", "'...go do the thing, okay?'"] },
               { stage: 3, lines: ["Shiori: 'Promise me one thing.'", "'When you come back to visit, the first conbini onigiri is on me.'", "'Deal?'"] },
             ],
@@ -699,7 +699,7 @@ const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
               { label: 'Leave', action: 'leave' },
             ],
             conversations: [
-              { stage: 3, lines: ["The VP: 'Jay! Synergy buddy!'", "(He still says it like that.)", "'No, but seriously — congrats on Anthropic. You earned it.'"] },
+              { stage: 3, lines: ["The VP: 'Jay! Synergy buddy!'", "(He still says it like that.)", "'No, but seriously — congrats on Anthropic. You will do great!'"] },
               { stage: 3, lines: ["The VP: 'Don't forget where you came from.'", "'Salesforce is the best GTM school in the world.'", "'Take what you learned and ship it harder over there.'"] },
               { stage: 3, lines: ["The VP: 'I'm gonna miss you, man.'", "'Quietly. Like, in a professional way.'", "'...okay, a lot.'"] },
             ],
@@ -713,8 +713,8 @@ const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
             ],
             conversations: [
               { stage: 3, lines: ["Opposing Colleague: 'So... you actually pulled it off.'", "'Anthropic. Damn.'", "'I owe you a beer. Maybe two.'"] },
-              { stage: 3, lines: ["Opposing Colleague: 'Look — about the pipeline drama.'", "'You were right. I was being a credit thief.'", "'For real, go crush it over there. Ohana.'"] },
-              { stage: 3, lines: ["Opposing Colleague: 'You know what's weird?'", "'I'll still see you in Slack channels.'", "'Different workspace, same chaos.'", "'Anthropic better appreciate you.'"] },
+              { stage: 3, lines: ["Opposing Colleague: 'Look — about the pipeline thing.'", "'You were right. We could have done something better.'", "'For real, go crush it over there. Ohana.'"] },
+              { stage: 3, lines: ["Opposing Colleague: 'You know what's weird?'", "'I'll still see you in Slack channels.'", "'Different workspace, same chaos.'", "'Go crush it in Anthropic.'"] },
             ],
           },
         ],
