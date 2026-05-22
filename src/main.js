@@ -458,9 +458,9 @@ const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
               // Stage 0
               { stage: 0, lines: ["Fu Chan slow-blinks at you.", "(High honor.)"] },
               { stage: 0, lines: ["Fu Chan walks across your keyboard.", "Your meeting is now cancelled."] },
-              { stage: 0, lines: ["Fu Chan presents his belly.", "(Trap. Do not engage.)"] },
+              { stage: 0, lines: ["Fu Chan presents her belly.", "(Trap. Do not engage.)"] },
               { stage: 0, lines: ["Fu Chan judges your career choices.", "She says nothing. Says everything."] },
-              { stage: 0, lines: ["Fu Chan demands to be fed.", "He was fed four minutes ago."] },
+              { stage: 0, lines: ["Fu Chan demands to be fed.", "She was fed four minutes ago."] },
               { stage: 0, lines: ["Fu Chan sits on your interview notes.", "Now they are HER interview notes."] },
               // Stage 1 — Crossing Over
               { stage: 1, lines: ["Fu Chan watches the door longer when you leave.", "(Or maybe she's always done that.)"] },
