@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Recruiter Jay Kim's Quest — Phase 5.1: Offices</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+  body {
+    margin: 0; background: #1a1410; color: #d4a574;
+    font-family: 'VT323', 'Courier New', monospace;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 24px 20px 40px; min-height: 100vh; user-select: none;
+    /* Block pinch-zoom and double-tap-zoom on touch devices.
+       'manipulation' allows normal taps/pans but disables zoom gestures. */
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-text-size-adjust: 100%;
+  }
+  /* Canvas — block text selection but allow normal interaction */
+  #game, #game canvas {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  h1 {
+    margin: 0 0 6px 0; font-family: 'Press Start 2P', monospace; font-size: 16px;
+    color: #e8b87d; letter-spacing: 2px; text-shadow: 2px 2px 0 #4a2c1a; text-align: center;
+  }
+  .subtitle { color: #8b6f47; margin-bottom: 16px; font-size: 18px; letter-spacing: 1px; }
+  #game { border: 3px solid #4a2c1a; box-shadow: 0 0 50px rgba(212, 165, 116, 0.12), inset 0 0 0 1px #2a1f17; border-radius: 2px; }
+  .legend { display: flex; gap: 22px; margin-top: 18px; flex-wrap: wrap; justify-content: center; font-size: 19px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; }
+  .swatch { width: 18px; height: 18px; display: inline-block; border: 1px solid #4a2c1a; }
+  .controls { margin-top: 14px; color: #8b6f47; font-size: 18px; text-align: center; line-height: 1.6; }
+  kbd { background: #2a1f17; border: 1px solid #6b4a2c; padding: 1px 8px; border-radius: 3px; color: #e8b87d; font-family: 'VT323', monospace; font-size: 17px; }
+  .footnote { margin-top: 10px; color: #5c4a35; font-size: 15px; font-style: italic; }
+
+  /* ========== TOUCH CONTROLS ========== */
+  /* Hidden by default; shown when body.touch-device is set (added via JS on touch detection). */
+  .touch-controls { display: none; }
+
+  body.touch-device .touch-controls {
+    display: flex; flex-direction: column; align-items: center;
+    width: 100%; max-width: 640px;
+    margin-top: 12px; gap: 10px;
+    -webkit-user-select: none; user-select: none;
+    touch-action: none;
+  }
+  body.touch-device .touch-row {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; gap: 8px;
+  }
+  body.touch-device .touch-row.center { justify-content: center; gap: 6px; }
+  body.touch-device .touch-row.numbers { flex-wrap: nowrap; }
+
+  .touch-btn {
+    background: #2a1f17; color: #e8b87d;
+    border: 2px solid #6b4a2c; border-radius: 6px;
+    font-family: 'Press Start 2P', monospace; font-size: 13px;
+    min-width: 44px; min-height: 44px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    box-shadow: 0 2px 0 #1a1410;
+    padding: 0;
+  }
+  .touch-btn:active, .touch-btn.held {
+    background: #4a2c1a; color: #ffd966;
+    transform: translateY(2px); box-shadow: 0 0 0 #1a1410;
+  }
+  .touch-btn.num { font-size: 14px; min-width: 36px; flex: 1; }
+  .touch-btn.icon { font-size: 18px; font-family: 'VT323', monospace; }
+  .touch-btn.action-a { background: #6b3410; color: #ffd966; }
+  .touch-btn.action-b { background: #3a2a1f; }
+
+  /* D-pad layout — inverted-T (like keyboard arrow keys):  ▲ on top row,
+     and  ◀ ▼ ▶  on bottom row, with down centered between left and right. */
+  .dpad {
+    display: grid; grid-template-columns: repeat(3, 50px); grid-template-rows: repeat(2, 50px);
+    gap: 4px;
+  }
+  .dpad .touch-btn { min-width: 50px; min-height: 50px; font-size: 16px; }
+  .dpad .up    { grid-column: 2; grid-row: 1; }
+  .dpad .left  { grid-column: 1; grid-row: 2; }
+  .dpad .down  { grid-column: 2; grid-row: 2; }
+  .dpad .right { grid-column: 3; grid-row: 2; }
+
+  /* A/B action cluster — VT323 font lets multi-letter labels like "Space" / "Back" fit. */
+  .ab-cluster { display: flex; gap: 10px; align-items: center; }
+  .ab-cluster .touch-btn {
+    min-width: 72px; min-height: 64px;
+    font-family: 'VT323', monospace; font-size: 24px;
+    letter-spacing: 1px;
+  }
+
+  /* ========== MOBILE-FIRST RESPONSIVE LAYOUT ========== */
+  @media (max-width: 700px), (pointer: coarse) {
+    body { padding: 6px 6px 12px; }
+    h1 { font-size: 13px; margin-bottom: 4px; }
+    .subtitle { font-size: 14px; margin-bottom: 8px; }
+    .legend { display: none; }
+    .controls { display: none; }
+    .footnote { display: none; }
+    /* Canvas stays at native 640x524 — we visually shrink it with CSS transform.
+       --game-scale is set in JS (see <script> at bottom of body) because
+       Mobile Safari rejects `scale(calc(<length>/<number>))` — the calc
+       must produce a unitless number, which is awkward to express in CSS
+       alone. JS-set CSS variable avoids that footgun. */
+    #game {
+      transform-origin: top center;
+      transform: scale(var(--game-scale, 1));
+      /* The transform leaves vertical layout space at native size; reclaim it. */
+      margin-bottom: calc((var(--game-scale, 1) - 1) * 524px);
+      border-width: 2px;
+    }
+  }
+
+  /* Very small phones — same approach, slightly tighter padding */
+  @media (max-width: 380px) {
+    body { padding: 4px 4px 10px; }
+    h1 { font-size: 11px; }
+    .subtitle { font-size: 12px; margin-bottom: 6px; }
+    #game {
+      border-width: 1px;
+    }
+    .dpad { grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(2, 46px); }
+    .dpad .touch-btn { min-width: 46px; min-height: 46px; }
+    .ab-cluster .touch-btn { min-width: 64px; min-height: 56px; font-size: 22px; }
+    .touch-btn.num { min-width: 32px; min-height: 40px; font-size: 12px; }
+    .touch-btn.icon { min-width: 40px; min-height: 40px; }
+  }
+
+  /* Tablets and larger viewports — more comfortable spacing, bigger buttons */
+  @media (min-width: 800px) and (pointer: coarse) {
+    .dpad { grid-template-columns: repeat(3, 56px); grid-template-rows: repeat(2, 56px); }
+    .dpad .touch-btn { min-width: 56px; min-height: 56px; font-size: 18px; }
+    .ab-cluster .touch-btn { min-width: 84px; min-height: 72px; font-size: 28px; }
+    .touch-btn.num { min-width: 44px; min-height: 48px; font-size: 16px; }
+  }
+</style>
+  <script type="module" crossorigin src="/jay-quest/assets/index-9030d6bc.js"></script>
+</head>
+<body>
+  <h1>RECRUITER JAY KIM'S QUEST</h1>
+  <div class="subtitle">Phase 6.18 — Fixed Canvas</div>
+  <div id="game"></div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="swatch" style="background:#4a90e2"></span> J — You</div>
+    <div class="legend-item"><span class="swatch" style="background:#e87da9"></span> W — Wife</div>
+    <div class="legend-item"><span class="swatch" style="background:#8f969d"></span> F — Fu Chan</div>
+    <div class="legend-item"><span class="swatch" style="background:#ffd966"></span> M — Mion</div>
+    <div class="legend-item"><span class="swatch" style="background:#9b6a8c"></span> T — Take (outside)</div>
+  </div>
+
+  <div class="controls">
+    <kbd>&uarr;</kbd> <kbd>&darr;</kbd> <kbd>&larr;</kbd> <kbd>&rarr;</kbd> walk &nbsp;·&nbsp;
+    <kbd>Space</kbd> talk / advance &nbsp;·&nbsp;
+    <kbd>1</kbd>&ndash;<kbd>5</kbd> choose &nbsp;·&nbsp;
+    <kbd>C</kbd> character &nbsp;·&nbsp;
+    <kbd>I</kbd> inventory &nbsp;·&nbsp;
+    <kbd>Esc</kbd> pause / save &nbsp;·&nbsp;
+    <kbd>B</kbd> back
+  </div>
+  <div class="footnote">Step outside and seek the orange-tinted bosses. Defeat them to earn XP and level up.</div>
+
+  <!-- ========== TOUCH CONTROLS (mobile / touch devices only) ========== -->
+  <div class="touch-controls" id="touchControls" aria-hidden="true">
+    <!-- Top row: utility icons (pause / inventory / character) -->
+    <div class="touch-row center">
+      <button class="touch-btn icon" data-touch="esc" aria-label="Pause">≡</button>
+      <button class="touch-btn icon" data-touch="i"   aria-label="Inventory">I</button>
+      <button class="touch-btn icon" data-touch="c"   aria-label="Character">C</button>
+    </div>
+    <!-- Main row: D-pad on left, A/B on right -->
+    <div class="touch-row">
+      <div class="dpad">
+        <button class="touch-btn up"    data-touch="up"    aria-label="Up">▲</button>
+        <button class="touch-btn left"  data-touch="left"  aria-label="Left">◀</button>
+        <button class="touch-btn right" data-touch="right" aria-label="Right">▶</button>
+        <button class="touch-btn down"  data-touch="down"  aria-label="Down">▼</button>
+      </div>
+      <div class="ab-cluster">
+        <button class="touch-btn action-b" data-touch="b" aria-label="Back / Cancel">Back</button>
+        <button class="touch-btn action-a" data-touch="space" aria-label="Confirm / Interact / Advance dialogue">Space</button>
+      </div>
+    </div>
+    <!-- Number row: 1-8 for menus / battles / shop -->
+    <div class="touch-row numbers">
+      <button class="touch-btn num" data-touch="num" data-n="1">1</button>
+      <button class="touch-btn num" data-touch="num" data-n="2">2</button>
+      <button class="touch-btn num" data-touch="num" data-n="3">3</button>
+      <button class="touch-btn num" data-touch="num" data-n="4">4</button>
+      <button class="touch-btn num" data-touch="num" data-n="5">5</button>
+      <button class="touch-btn num" data-touch="num" data-n="6">6</button>
+      <button class="touch-btn num" data-touch="num" data-n="7">7</button>
+      <button class="touch-btn num" data-touch="num" data-n="8">8</button>
+    </div>
+  </div>
+
+  <script>
+    // Compute --game-scale so #game fits within the viewport on mobile.
+    // We can't do this purely in CSS because `scale()` needs a unitless
+    // value and most browsers reject `calc(<length>/<number>)`.
+    (function () {
+      var GAME_W = 640;
+      function update() {
+        var pad = window.innerWidth <= 380 ? 8 : 12;
+        var scale = Math.min(1, (window.innerWidth - pad) / GAME_W);
+        document.documentElement.style.setProperty('--game-scale', scale);
+      }
+      update();
+      window.addEventListener('resize', update);
+      window.addEventListener('orientationchange', update);
+    })();
+  </script>
+  
+</body>
+</html>
