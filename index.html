@@ -105,13 +105,15 @@
     .controls { display: none; }
     .footnote { display: none; }
     /* Canvas stays at native 640x524 — we visually shrink it with CSS transform.
-       This decouples layout from Phaser's internal canvas size so there's no
-       feedback loop where parent resize triggers canvas resize triggers parent. */
+       --game-scale is set in JS (see <script> at bottom of body) because
+       Mobile Safari rejects `scale(calc(<length>/<number>))` — the calc
+       must produce a unitless number, which is awkward to express in CSS
+       alone. JS-set CSS variable avoids that footgun. */
     #game {
       transform-origin: top center;
-      transform: scale(calc((100vw - 12px) / 640));
+      transform: scale(var(--game-scale, 1));
       /* The transform leaves vertical layout space at native size; reclaim it. */
-      margin-bottom: calc(((100vw - 12px) / 640 - 1) * 524px);
+      margin-bottom: calc((var(--game-scale, 1) - 1) * 524px);
       border-width: 2px;
     }
   }
@@ -122,8 +124,6 @@
     h1 { font-size: 11px; }
     .subtitle { font-size: 12px; margin-bottom: 6px; }
     #game {
-      transform: scale(calc((100vw - 8px) / 640));
-      margin-bottom: calc(((100vw - 8px) / 640 - 1) * 524px);
       border-width: 1px;
     }
     .dpad { grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(2, 46px); }
@@ -200,6 +200,22 @@
     </div>
   </div>
 
+  <script>
+    // Compute --game-scale so #game fits within the viewport on mobile.
+    // We can't do this purely in CSS because `scale()` needs a unitless
+    // value and most browsers reject `calc(<length>/<number>)`.
+    (function () {
+      var GAME_W = 640;
+      function update() {
+        var pad = window.innerWidth <= 380 ? 8 : 12;
+        var scale = Math.min(1, (window.innerWidth - pad) / GAME_W);
+        document.documentElement.style.setProperty('--game-scale', scale);
+      }
+      update();
+      window.addEventListener('resize', update);
+      window.addEventListener('orientationchange', update);
+    })();
+  </script>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

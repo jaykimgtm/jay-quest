@@ -121,9 +121,18 @@ export function unlockAudio(scene) {
   if (scene) lastSceneRef = scene;
   if (unlocked) return;
   unlocked = true;
+  const ctx = scene && scene.sound && scene.sound.context;
+  if (!ctx) return;
+  try { if (ctx.state === 'suspended') ctx.resume(); } catch (e) {}
+  // iOS Safari requires a sound to actually be played within the user
+  // gesture before any later sound will play. A 1-sample silent buffer
+  // satisfies that requirement without making a sound.
   try {
-    const ctx = scene && scene.sound && scene.sound.context;
-    if (ctx && ctx.state === 'suspended') ctx.resume();
+    const buffer = ctx.createBuffer(1, 1, 22050);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    source.start(0);
   } catch (e) {}
 }
 
