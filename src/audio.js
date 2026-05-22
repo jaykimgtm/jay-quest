@@ -117,22 +117,33 @@ export function preloadAudio(scene) {
 //  Unlock — call on the first user input (menu tap/key).
 //  Resumes the WebAudio context per browser autoplay rules.
 // ============================================================
+// 1-sample silent WAV (8 kHz 8-bit mono). Used to wake iOS media output.
+const SILENT_WAV = 'data:audio/wav;base64,UklGRiUAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQEAAACA';
+
 export function unlockAudio(scene) {
   if (scene) lastSceneRef = scene;
   if (unlocked) return;
   unlocked = true;
   const ctx = scene && scene.sound && scene.sound.context;
-  if (!ctx) return;
-  try { if (ctx.state === 'suspended') ctx.resume(); } catch (e) {}
-  // iOS Safari requires a sound to actually be played within the user
-  // gesture before any later sound will play. A 1-sample silent buffer
-  // satisfies that requirement without making a sound.
+  if (ctx) {
+    try { if (ctx.state === 'suspended') ctx.resume(); } catch (e) {}
+    // WebAudio side of the iOS unlock: a 1-sample silent buffer.
+    try {
+      const buffer = ctx.createBuffer(1, 1, 22050);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start(0);
+    } catch (e) {}
+  }
+  // HTMLMediaElement side of the iOS unlock. Calling .play() on a silent
+  // <audio> during the first user gesture is what actually grants the
+  // browser app audio output on iOS 15+ — WebAudio alone isn't enough.
   try {
-    const buffer = ctx.createBuffer(1, 1, 22050);
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(ctx.destination);
-    source.start(0);
+    const a = new Audio(SILENT_WAV);
+    a.muted = false;
+    const p = a.play();
+    if (p && typeof p.then === 'function') p.catch(() => {});
   } catch (e) {}
 }
 
