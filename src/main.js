@@ -6,6 +6,12 @@ import {
   getAudioPrefs, setAudioPref, toggleMute,
 } from './audio.js';
 
+// iOS detection — used to switch Phaser into HTML5 audio mode (the only
+// reliably playable audio path on iOS Chrome / mobile Safari) and to
+// re-enable MenuScene audio preload (safe in HTML5 mode, hangs in WebAudio).
+const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+  || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
     // ============================================================
     //  PHASE 3 — THE WORLD GETS BIGGER
     //  New: data-driven maps, exit transitions, camera follow.
@@ -1160,7 +1166,12 @@ import {
       key: 'menu',
       preload: function () {
         preloadCharacterAssets(this);
-        // Intentionally skip preloadAudio here: Phaser 3.80.1's loader can hang
+        // On iOS we use HTML5 audio mode (see Phaser.Game config below), which
+        // doesn't have the WebAudio decode-hang issue and *needs* sounds in the
+        // cache by the first tap so Phaser's auto-unlock has something to play
+        // (the iOS media gate only opens once an HTMLMediaElement actually plays).
+        if (IS_IOS) preloadAudio(this);
+        // Intentionally skip preloadAudio here on non-iOS: Phaser 3.80.1's loader can hang
         // on decodeAudioData while the AudioContext is still suspended (no user
         // gesture yet on first paint). The title is the first scene the user
         // sees, so loading audio here blocks the canvas from rendering at all.
@@ -1972,6 +1983,9 @@ import {
     // rendered the title screen, falling back to monospace and making the title
     // appear capped at a small size regardless of fontSize values. document.fonts.load
     // forces a guaranteed wait for the fonts before any text is drawn.
+    // iOS uses HTML5 audio mode (see IS_IOS at top of file). WebAudio's
+    // OS-level media gate isn't reliably unlockable on iOS Chrome; HTML5
+    // mode sidesteps it entirely and Phaser auto-unlocks on first touch.
     function startGame() {
       new Phaser.Game({
         type: Phaser.AUTO,
@@ -1981,6 +1995,7 @@ import {
         backgroundColor: '#1a1410',
         pixelArt: true,
         roundPixels: true,
+        audio: { disableWebAudio: IS_IOS },
         scene: [MenuScene, DisclaimerScene, GameScene, BattleScene],
         // No scale manager — canvas is fixed at native size, CSS scales it visually.
         // Using Scale.FIT here caused a layout feedback loop where the #game parent
