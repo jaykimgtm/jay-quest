@@ -11,6 +11,14 @@ import Phaser from 'phaser';
 const PREFS_KEY = 'recruiterQuest.audio.v1';
 const DEFAULT_PREFS = { master: 0.8, music: 0.8, sfx: 0.9, muted: false };
 
+// iOS Mobile Chrome / Safari use HTML5 audio (see main.js), where each
+// .play() call costs ~10–50ms on the main thread. Used to throttle the
+// most-frequent SFX (footstep) so walking stays smooth.
+const IS_IOS = typeof navigator !== 'undefined' && (
+  /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+);
+
 const BGM_REGISTRY = {
   title:             { file: 'bgm/title.mp3',             loop: true,  volume: 0.55, fadeMs: 800  },
   house:             { file: 'bgm/house.mp3',             loop: true,  volume: 0.45, fadeMs: 800  },
@@ -246,6 +254,9 @@ export function playSfx(id) {
   const variantCount = def.files.length;
   let variantIdx;
   if (id === 'footstep' && variantCount > 1) {
+    // iOS HTML5 audio: skip every other footstep to halve main-thread
+    // cost. Still increment the counter so variant alternation continues.
+    if (IS_IOS && (footstepIdx % 2 === 1)) { footstepIdx++; return; }
     variantIdx = footstepIdx % variantCount;
     footstepIdx++;
   } else {
